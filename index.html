@@ -786,7 +786,7 @@ function seedRefs(){
     q.rows.forEach(x=>{if(!f.rows.some(y=>y.date===x.date&&y.normal===x.normal&&y.special===x.special))f.rows.push({id:uid(),date:x.date,normal:x.normal,special:x.special})});
     state.active=f.id;state.view='fund';ch=true;
   });
-  const ord=Object.keys(REF), idx=f=>(f.refKey&&ord.indexOf(f.refKey)>=0)?ord.indexOf(f.refKey):-1, ids=()=>state.funds.map(f=>f.id).join();
+  const ord=Object.keys(REF), idx=f=>f.sample&&/^サンプルA/.test(f.name)?-1:(f.refKey&&ord.indexOf(f.refKey)>=0)?ord.indexOf(f.refKey):999, ids=()=>state.funds.map(f=>f.id).join();
   const before=ids();
   state.funds=state.funds.map((f,i)=>[f,i]).sort((a,b)=>idx(a[0])-idx(b[0])||a[1]-b[1]).map(x=>x[0]);
   if(ids()!==before)ch=true;
