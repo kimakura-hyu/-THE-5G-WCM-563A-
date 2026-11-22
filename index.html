@@ -293,16 +293,6 @@ a.ghost{padding:5px 12px}
 a.btn,a.btn:visited,a.btn:hover,button.btn[data-req]{background:var(--ink);color:var(--surface);text-decoration:none;display:inline-block;font-weight:700}
 a.btn2{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px solid var(--accent);border-radius:6px;color:var(--accent);text-decoration:none;display:inline-block}
 .syncst{font-size:.78rem;color:var(--ink2);margin:-10px 0 0}
-.bzc{padding:12px 0;border-bottom:1px solid var(--grid)}
-.bzh{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:6px}
-.bzv{font-weight:700;font-size:.9rem;padding:2px 10px;border:1px solid var(--grid);border-radius:999px}
-.bzr{display:grid;grid-template-columns:5.6em 1.6em minmax(0,1fr);gap:2px 8px;padding:4px 0;font-size:.85rem;align-items:baseline}
-.bzr b{text-align:center}
-.bzm{font-size:.82rem;color:var(--ink2);margin:0 0 4px}
-.bzf{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:end;margin:14px 0 6px}
-.bzf label{display:grid;gap:2px;font-size:.78rem;color:var(--ink2)}
-.bzf input{font:inherit;padding:7px 8px;border:1px solid var(--grid);border-radius:6px;background:var(--surface);color:var(--ink);width:9em}
-@media (max-width:560px){.bzr{grid-template-columns:4.6em 1.4em minmax(0,1fr)}}
 .reqmsg{font-size:.82rem;color:var(--ink2);margin-top:8px}
 .reqmsg:empty{display:none}
 .reqmsg textarea{display:block;width:100%;margin-top:6px;font:inherit;font-size:.8rem;padding:8px;border:1px solid var(--grid);border-radius:6px;background:var(--surface);color:var(--ink)}
@@ -497,10 +487,6 @@ a.btn2{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px
     <section class="card" aria-labelledby="c8-h">
       <h2 id="c8-h">分配金カレンダー(決算日・分配落ち日・購入締切)</h2>
       <div id="cmp-cal"></div>
-    </section>
-    <section class="card" aria-labelledby="c9-h">
-      <h2 id="c9-h">買い場チェック(AI基準の見立て)</h2>
-      <div id="cmp-buy"></div>
     </section>
     <section class="card" aria-labelledby="c7-h">
       <h2 id="c7-h">各ファンドの上位10銘柄を見比べる</h2>
@@ -734,7 +720,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('click',e=>{
   const b=e.target.closest&&e.target.closest('[data-plmode]'); if(!b)return;
-  state.plMode=b.dataset.plmode==='all'?'all':'n'; saveLocal(); renderAll();
+  const y=window.scrollY; state.plMode=b.dataset.plmode==='all'?'all':'n'; saveLocal(); renderAll(); window.scrollTo(0,y); requestAnimationFrame(()=>window.scrollTo(0,y));
 });
 document.addEventListener('click',e=>{
   if(!(e.target.closest&&e.target.closest('#pr-copy')))return;
@@ -806,7 +792,7 @@ function renderTabs(){
     '<button type="button" class="tab add" id="add-fund">＋ ファンドを追加</button>';
   $('sample-note').hidden=!state.funds.some(f=>f.sample);
   const a=$('tabs').querySelector('[aria-pressed="true"]');
-  try{if(a&&a.scrollIntoView)a.scrollIntoView({inline:'nearest',block:'nearest'})}catch(e){}
+  try{if(a){const c=$('tabs'),cr=c.getBoundingClientRect(),ar=a.getBoundingClientRect();if(ar.left<cr.left)c.scrollLeft-=cr.left-ar.left;else if(ar.right>cr.right)c.scrollLeft+=ar.right-cr.right}}catch(e){}
 }
 /* ---------- fund view ---------- */
 function renderSettings(){
@@ -1164,7 +1150,7 @@ function renderRefStatus(){
     return '<div class="ov"><strong>'+esc(q.n)+'</strong><span>基準日 '+esc(longDate(q.r.asOf))+'('+days+'日前)<span class="tag2" style="color:'+(stale?'var(--bad)':'var(--good)')+'">'+(stale?'新しい月次データが出ている可能性':'最新の可能性が高い')+'</span></span></div>';
   }).join('');
   el.innerHTML='<h3 style="margin-top:20px">組入銘柄データの更新</h3>'+rows+
-    '<p class="note foot" style="margin-top:10px">このページは外部サイトを直接見られないため、自動では更新されません。ボタンを押すと、更新の依頼文が入力済みの新しいチャットが開きます(送信は自分で押します)。</p>'+reqButtons();
+    reqButtons();
 }
 
 /* ---------- 分配金カレンダー ---------- */
@@ -1270,46 +1256,6 @@ $('cmp-cal').addEventListener('click',e=>{
   const nb=$('cmp-cal').querySelector('[data-cal="'+v+'"]'); if(nb)nb.focus();
 });
 
-/* ---------- 買い場チェック ---------- */
-const MARKET={d:'2026-11-20',fx:'ドル円は159円台後半(160円付近は日本の介入警戒が強い水準)',rate:'FRBは12月8〜9日のFOMCで0.25%の利上げが見込まれています(織り込み約96%)',ai:'AI関連株の調整で、米株の値動きが荒くなっています'};
-function buyFactors(f){
-  const q=f.refKey&&REF[f.refKey], p=effProfile(f), m=metrics(f), out=[];
-  if(q&&q.px)out.push({n:'直近の値動き',s:q.px.v<=-5?1:0,t:q.px.t+(q.px.v<=-5?'。押し目の可能性はありますが、下げ止まりかどうかは分かりません':'')});
-  else out.push({n:'直近の値動き',s:0,nd:1,t:'まだ取得できていません'});
-  out.push({n:'金利・相場',s:-1,t:MARKET.rate+'。'+MARKET.ai});
-  const unh=/なし/.test(String(p.hedge||''))&&!/あり/.test(String(p.hedge||''));
-  out.push({n:'為替',s:unh?-1:0,t:unh?MARKET.fx+'。為替ヘッジなしなので、円高に戻ると基準価額が下がります':(p.hedge?'ヘッジの有無はコースで変わります。'+MARKET.fx:'ヘッジの有無を確認できていません。'+MARKET.fx)});
-  const gs=m.d.gn+m.d.ts;
-  if(m.d.rows.length>=6&&gs>0){const sh=m.d.ts/gs*100;out.push({n:'分配金の質',s:sh<10?1:(sh<40?0:-1),t:'受け取った分配金のうち特別分配金が'+sh.toFixed(0)+'%(あなたの記録)'+(sh>=40?'。元本の取り崩しが多めです':'')})}
-  else out.push({n:'分配金の質',s:0,nd:1,t:m.d.rows.length?'記録が'+m.d.rows.length+'件と少ないため、まだ判断できません':'分配金の記録がまだありません'});
-  const eff=q&&q.hold&&q.hold.length?q.hold:null;
-  if(eff){const t=eff.filter(x=>SEC[x.k]==='情報技術').reduce((a,x)=>a+x.p,0), tot=eff.reduce((a,x)=>a+x.p,0), sh=tot>0?t/tot*100:0;
-    out.push({n:'業種の偏り',s:sh>=45?-1:(sh<=25?1:0),t:'上位10銘柄のうち情報技術が'+sh.toFixed(0)+'%'+(sh>=45?'。AI・半導体の値動きにまとめて左右されます':'')})}
-  else out.push({n:'業種の偏り',s:0,nd:1,t:'組入銘柄のデータがありません'});
-  return out;
-}
-function renderBuy(){
-  const el=$('cmp-buy'); if(!el)return;
-  const IC={'1':['○','前向き'],'0':['△','どちらとも'],'-1':['×','慎重']};
-  const VD=(sc,nd)=>nd>=2?['■','材料が足りません']:(sc>=1?['▲','前向き寄り']:(sc>=-1?['●','中立(分割で)']:['▼','慎重(見送りか少額)']));
-  let h='<p class="bzm">材料を5つに分けて、○(前向き)・△(どちらとも)・×(慎重)を数えた見立てです。株価や為替の先行きを当てるものではありません。市場の材料は'+esc(longDate(MARKET.d))+'時点です。</p>';
-  state.funds.filter(f=>!f.sample).forEach(f=>{
-    const fa=buyFactors(f), sc=fa.reduce((a,x)=>a+x.s,0), v=VD(sc,fa.filter(x=>x.nd).length);
-    h+='<div class="bzc"><div class="bzh"><strong>'+esc(shortOf(f))+'</strong><span class="bzv">'+v[0]+' '+v[1]+'</span><small>'+(v[0]==='■'?'データ不足のため参考: ':'')+'○'+fa.filter(x=>x.s>0).length+' △'+fa.filter(x=>x.s===0).length+' ×'+fa.filter(x=>x.s<0).length+'</small></div>'+
-      fa.map(x=>'<div class="bzr"><span>'+x.n+'</span><b aria-label="'+IC[x.s][1]+'">'+IC[x.s][0]+'</b><span>'+esc(x.t)+'</span></div>').join('')+'</div>';
-  });
-  h+='<div class="bzf"><label>追加で買う金額(円)<input id="bz-amt" type="number" inputmode="numeric" min="0" step="1000" placeholder="例 100000"></label><label>何回に分ける<input id="bz-n" type="number" inputmode="numeric" min="1" max="24" value="4"></label></div><div id="bz-out" class="bzm"></div>';
-  el.innerHTML=h; buyPlan();
-}
-function buyPlan(){
-  const o=$('bz-out'); if(!o)return;
-  const a=num($('bz-amt').value), n=Math.max(1,Math.min(24,Math.round(num($('bz-n').value)||1)));
-  if(!(a>0)){o.textContent='金額を入れると、毎月1回ずつ買う場合の1回あたりの金額と日付を出します。';return}
-  const per=Math.round(a/n), d0=new Date(), ds=[];
-  for(let i=0;i<n&&i<24;i++){const d=new Date(d0.getFullYear(),d0.getMonth()+i,Math.min(d0.getDate(),28));ds.push((d.getMonth()+1)+'/'+d.getDate())}
-  o.textContent='毎月1回、1回あたり'+per.toLocaleString('ja-JP')+'円を'+n+'回。買う日の例: '+ds.join('、')+'。';
-}
-document.addEventListener('input',e=>{if(e.target&&(e.target.id==='bz-amt'||e.target.id==='bz-n'))buyPlan()});
 function renderCompare(){
   $('c3-h').textContent=LBLR()+(PLN()?'(評価額 + 普通分配金 − 元本)÷ 元本':'(評価額 + 分配金 − 元本)÷ 元本');
   $('plmode-c').innerHTML=plToggle();
@@ -1398,7 +1344,6 @@ function renderCompare(){
   });
   $('cmp-pl').innerHTML=p;
 
-  renderBuy();
   renderCalendar();
   renderTopHoldings();
   renderRefStatus();
