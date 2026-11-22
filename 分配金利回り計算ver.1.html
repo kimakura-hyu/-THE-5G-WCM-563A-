@@ -1,0 +1,1590 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>分配金利回り計算</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: fund tabs on top (each fund + 見比べる). A fund page runs top to bottom: settings, profit/loss verdict, recovery of principal, chart, fund profile, ledger. Blue = 普通分配金, orange = 特別分配金, grey = 現在の評価額. Green/red are only for plus/minus and always come with a sign and a word. */
+:root{
+  --bg:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --hair:rgba(11,11,11,.10); --track:#ebeae5;
+  --s1:#2a78d6; --s2:#eb6834; --neutral:#9c9a93; --accent:#2a78d6;
+  --c1:#2a78d6; --c2:#eb6834; --c3:#1baf7a; --c4:#eda100; --c5:#e87ba4; --c6:#008300; --c7:#6250d6; --c8:#e34948;
+  --good:#006300; --bad:#c02f2f; --goodfill:#0c8a0c; --badfill:#d03b3b;
+  --font:"Noto Sans JP",system-ui,-apple-system,"Segoe UI","Hiragino Sans","Yu Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d0d0d; --surface:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --hair:rgba(255,255,255,.10); --track:#2a2a28;
+    --s1:#3987e5; --s2:#d95926; --neutral:#6f6e68; --accent:#3987e5;
+    --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#0ca30c; --c7:#9085e9; --c8:#e66767;
+    --good:#2fbf2f; --bad:#ee7070; --goodfill:#0ca30c; --badfill:#e66767; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d0d0d; --surface:#1a1a19; --ink:#f0efec; --ink2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --hair:rgba(255,255,255,.10); --track:#2a2a28;
+  --c1:#3987e5; --c2:#d95926; --c3:#199e70; --c4:#c98500; --c5:#d55181; --c6:#0ca30c; --c7:#9085e9; --c8:#e66767;
+  --s1:#3987e5; --s2:#d95926; --neutral:#6f6e68; --accent:#3987e5;
+  --good:#2fbf2f; --bad:#ee7070; --goodfill:#0ca30c; --badfill:#e66767; color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--font); font-size:15px; line-height:1.65;
+  padding-block:24px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.wrap{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.stack{display:flex;flex-direction:column;gap:20px;min-width:0}
+h1{font-size:1.5rem;line-height:1.3;margin:0;font-weight:700;text-wrap:balance}
+h2{font-size:1rem;margin:0 0 12px;font-weight:700;text-wrap:balance}
+h3{font-size:.88rem;margin:0 0 8px;font-weight:700;color:var(--ink2)}
+.lead{margin:4px 0 0;color:var(--ink2);font-size:.9rem}
+.card{background:var(--surface);border:1px solid var(--hair);border-radius:8px;padding:20px;min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px 16px;align-items:end}
+.lbl{display:block;font-size:.8rem;color:var(--ink2);margin-bottom:4px}
+input[type=text],input[type=number],input[type=date],textarea{
+  width:100%;min-width:0;font:inherit;padding:8px 10px;border:1px solid var(--axis);border-radius:6px;
+  background:var(--surface);color:var(--ink);
+}
+textarea{min-height:90px;resize:vertical}
+input:focus-visible,button:focus-visible,textarea:focus-visible,.hit:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.check{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--ink2);padding-bottom:8px}
+.check input{width:16px;height:16px;accent-color:var(--accent)}
+.sample{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;font-size:.85rem;color:var(--ink2);
+  border:1px dashed var(--axis);border-radius:8px;padding:10px 14px}
+.btn{font:inherit;font-size:.85rem;font-weight:500;padding:8px 16px;border:0;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer}
+.ghost{font:inherit;font-size:.8rem;padding:5px 12px;border:1px solid var(--axis);border-radius:6px;background:transparent;color:var(--ink2);cursor:pointer}
+.ghost:hover{border-color:var(--ink2);color:var(--ink)}
+.ghost:disabled{opacity:.5;cursor:not-allowed}
+.ghost.danger{color:var(--bad)}
+.rowbtn{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* tabs */
+.tabs{display:flex;flex-wrap:wrap;gap:8px}
+.tab{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px solid var(--axis);border-radius:999px;
+  background:var(--surface);color:var(--ink2);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab:hover{border-color:var(--ink2);color:var(--ink)}
+.tab[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.tab.add{border-style:dashed;background:transparent}
+
+/* verdict */
+.verdict{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--hair);border-radius:8px;padding:14px 16px;background:var(--bg);margin-bottom:16px}
+.verdict .big{font-size:1.5rem;font-weight:700;line-height:1.3;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.verdict .tag{display:inline-block;font-size:.78rem;font-weight:700;padding:1px 10px;border-radius:999px;border:1px solid currentColor;margin-left:8px;vertical-align:middle}
+.verdict p{margin:2px 0 0;font-size:.88rem;color:var(--ink2)}
+.verdict .ic{font-size:1.4rem;line-height:1.3;flex:none}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.hero{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
+.hero-num{font-size:3rem;line-height:1.1;font-weight:700;margin:0;font-variant-numeric:tabular-nums}
+.hero-num small{font-size:1.4rem;font-weight:500;margin-left:2px}
+.hero-txt{margin:0;color:var(--ink2);font-size:.92rem;flex:1 1 260px;min-width:0}
+.bar-wrap{display:flex;height:14px;background:var(--track);border-radius:4px;overflow:hidden;margin-top:14px}
+.seg1,.seg2{height:100%}
+.seg1{background:var(--s1);border-right:2px solid var(--surface)}.seg2{background:var(--s2)}
+.bar-scale{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:4px}
+.abar{position:relative;margin-top:6px}
+.abar-t{display:flex;height:18px;background:var(--track);border-radius:4px;overflow:hidden}
+.abar-t>div{height:100%;flex:none}
+.a0{background:var(--neutral);border-right:2px solid var(--surface)}
+.a1{background:var(--s1);border-right:2px solid var(--surface)}.a2{background:var(--s2)}
+.pmark{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed var(--ink)}
+.plab{position:absolute;top:26px;font-size:.75rem;color:var(--ink2);transform:translateX(-50%);white-space:nowrap}
+.alegend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.8rem;color:var(--ink2);margin-top:30px}
+.alegend span{display:inline-flex;align-items:center;gap:6px}
+.figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-top:20px}
+.fig{min-width:0}
+.fig .k{font-size:.8rem;color:var(--ink2);display:flex;align-items:center;gap:6px}
+.fig .v{font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.4;overflow-wrap:anywhere}
+.fig .s{font-size:.75rem;color:var(--ink2)}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;flex:none}
+.note{font-size:.82rem;color:var(--ink2);margin:16px 0 0}
+.empty{color:var(--ink2);font-size:.9rem;margin:0;padding:12px 0}
+
+/* chart */
+.chart-head{display:flex;flex-wrap:wrap;gap:10px 16px;justify-content:space-between;align-items:center;margin-bottom:8px}
+.chart-head h2{margin:0}
+.seg{display:inline-flex;border:1px solid var(--axis);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:.8rem;font-weight:500;padding:6px 12px;border:0;background:transparent;color:var(--ink2);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.82rem;color:var(--ink2);margin:0 0 6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dash{display:inline-block;width:16px;border-top:2px dashed var(--ink2)}
+.chartwrap{position:relative;width:100%}
+.chartwrap svg{display:block;width:100%;height:auto;overflow:visible}
+.tk{fill:var(--muted);font-size:11px;font-family:var(--font)}
+.vl{fill:var(--ink2);font-size:11px;font-family:var(--font)}
+.gl{stroke:var(--grid);stroke-width:1}
+.bl{stroke:var(--axis);stroke-width:1}
+.ref{stroke:var(--ink2);stroke-width:1.5;stroke-dasharray:4 3}
+.b1{fill:var(--s1)}.b2{fill:var(--s2)}
+.hit{fill:transparent;cursor:default}
+.hit:hover,.hit:focus-visible{fill:var(--hair)}
+.tip{position:absolute;top:0;pointer-events:none;z-index:2;background:var(--surface);border:1px solid var(--axis);
+  border-radius:6px;padding:8px 10px;font-size:.78rem;line-height:1.6;white-space:nowrap;color:var(--ink);
+  box-shadow:0 2px 8px rgba(0,0,0,.14);font-variant-numeric:tabular-nums}
+.tip[hidden]{display:none}
+.tip .row{display:flex;align-items:center;gap:6px}
+
+/* profile */
+.prof-head{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:center;margin-bottom:12px}
+.prof-head h2{margin:0}
+.dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 16px;margin:0 0 20px}
+.dl div{min-width:0}
+.dl dt{font-size:.78rem;color:var(--ink2)}
+.dl dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px 28px}
+.cols>div{min-width:0}
+.pb{display:grid;grid-template-columns:minmax(80px,38%) 1fr auto;gap:8px;align-items:center;margin-bottom:6px;font-size:.85rem}
+.pbl{min-width:0;overflow-wrap:anywhere}
+.pbt{height:10px;background:var(--track);border-radius:3px;overflow:hidden}
+.pbf{height:100%;background:var(--s1);border-radius:0 3px 3px 0}
+.pbv{font-variant-numeric:tabular-nums;color:var(--ink2);text-align:right;min-width:3.4em}
+.sumline{font-size:.78rem;color:var(--ink2);margin:6px 0 0}
+.sub{display:block;font-size:.72rem;color:var(--ink2);line-height:1.4}
+.refbar{border:1px solid var(--hair);background:var(--bg);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.8rem;color:var(--ink2)}
+.refbar a{color:var(--accent)}
+.ov{display:flex;flex-wrap:wrap;gap:2px 16px;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--grid)}
+.ov span{color:var(--ink2);font-variant-numeric:tabular-nums}
+.tab{max-width:min(100%,19em)}
+.ovc{border:1px solid var(--hair);border-radius:8px;padding:14px 16px;margin-top:12px;min-width:0}
+.ovh{display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:space-between;align-items:center;margin-bottom:4px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--ink2);border:1px solid var(--axis);border-radius:999px;padding:1px 10px}
+.ovd{margin:0 0 10px;font-size:.85rem;color:var(--ink2)}
+.ovn{margin:8px 0 0;font-size:.8rem;color:var(--ink2)}
+.sbar{display:flex;height:18px;background:var(--track);border-radius:4px;overflow:hidden}
+.sbar>div{height:100%;border-right:2px solid var(--surface)}
+.sbar>div:last-child{border-right:0}
+.insights{margin:14px 0 0;padding-left:1.2em;font-size:.85rem;color:var(--ink2)}
+.insights li{margin-bottom:4px}
+.stbl{min-width:460px;margin-top:14px}
+.stbl .sc{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.memo{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font-size:.9rem}
+.lrow{display:grid;grid-template-columns:1fr 84px auto auto;gap:6px;align-items:center;margin-bottom:6px}
+.lrow .unit{font-size:.8rem;color:var(--ink2)}
+.editgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 16px;margin-bottom:20px}
+
+/* ledger */
+.addrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
+.msg{min-height:1.4em;margin:8px 0 12px;font-size:.82rem;color:var(--ink2)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+.ledger{min-width:600px}
+th{font-size:.78rem;font-weight:500;color:var(--ink2);text-align:left;padding:6px 8px;border-bottom:1px solid var(--axis);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--grid);vertical-align:middle}
+th.r,td.r{text-align:right}
+td input{padding:6px 8px}
+td.r{white-space:nowrap}
+.foot{font-size:.78rem;color:var(--ink2);margin:0}
+
+/* compare */
+.cmp{min-width:860px}
+.cmp td.name button{font:inherit;font-weight:500;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px}
+.cmp tfoot td{font-weight:700;border-top:1px solid var(--axis);border-bottom:0}
+.cr{display:grid;grid-template-columns:minmax(90px,26%) 1fr minmax(84px,auto);gap:10px;align-items:center;margin-bottom:10px;font-size:.85rem}
+.cr .nm{min-width:0;overflow-wrap:anywhere}
+.ctrack{position:relative;height:18px;background:var(--track);border-radius:4px}
+.cseg{position:absolute;top:0;height:100%}
+.cseg.n{background:var(--s1)}.cseg.s{background:var(--s2)}
+.cseg.p{background:var(--goodfill);border-radius:0 3px 3px 0}.cseg.m{background:var(--badfill);border-radius:3px 0 0 3px}
+.cline{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed var(--ink)}
+.zline{position:absolute;top:-3px;bottom:-3px;width:0;border-left:1px solid var(--ink2)}
+.cv{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.cax{display:grid;grid-template-columns:minmax(90px,26%) 1fr minmax(84px,auto);gap:10px;font-size:.75rem;color:var(--muted);margin:-2px 0 8px}
+.cax .ax{position:relative;height:1em}
+.cax .ax span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+@media (prefers-reduced-motion:no-preference){.seg1,.seg2{transition:width .3s ease}}
+
+/* ---- v3: スマホ対応と新しい表示 ---- */
+.tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+.tab{flex:none;max-width:16em}
+@media (min-width:760px){.tabs{flex-wrap:wrap;overflow:visible}}
+a.btn,a.ghost{display:inline-block;text-decoration:none}
+a.ghost{padding:5px 12px}
+.rwrap{position:relative}
+.rbar{display:flex;height:32px;background:var(--track);border-radius:6px;overflow:hidden;margin-top:6px}
+.rbar>div{display:flex;align-items:center;justify-content:center;height:100%;font-size:.78rem;font-weight:700;color:#0b0b0b;white-space:nowrap;overflow:hidden;border-right:2px solid var(--surface)}
+.rbar>.rn{background:var(--s1)}.rbar>.rs{background:var(--s2)}
+.rbar>.ru{color:var(--ink2);font-weight:500;border-right:0;background:transparent}
+.rmark{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed var(--ink)}
+.rcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:16px}
+.rcard{border:1px solid var(--hair);border-radius:8px;padding:12px 14px;min-width:0}
+.rcard .rk{display:flex;align-items:center;gap:6px;font-size:.82rem;font-weight:700}
+.rcard .rp{font-size:1.7rem;line-height:1.25;font-weight:700;font-variant-numeric:tabular-nums}
+.rcard .ra{font-size:.9rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.rcard .rd{font-size:.76rem;color:var(--ink2);margin:6px 0 0;line-height:1.5}
+.cr,.cax{grid-template-columns:minmax(80px,24%) 1fr 96px}
+.cv small{display:block;font-weight:400;font-size:.7rem;color:var(--ink2);line-height:1.4}
+.hint{font-size:.8rem;color:var(--ink2)}
+.cmp small.u{display:block;font-size:.72rem;color:var(--ink2);font-weight:400}
+.cmp th .sw{margin-right:4px}
+.cmpcards{display:none;flex-direction:column;gap:12px}
+.cc{border:1px solid var(--hair);border-radius:8px;padding:12px 14px;min-width:0}
+.cc h3{margin:0 0 8px;font-size:.95rem;color:var(--ink)}
+.cc h3 button{font:inherit;font-weight:700;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px}
+.ccg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin:0}
+.ccg>div{min-width:0}
+.ccg dt{font-size:.72rem;color:var(--ink2);display:flex;gap:5px;align-items:center}
+.ccg dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;font-size:.9rem}
+.ccg dd small{display:block;font-weight:400;font-size:.72rem;color:var(--ink2)}
+.topgrid{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px}
+.topcol{min-width:0;scroll-snap-align:start}
+.thd{display:flex;flex-direction:column;gap:2px;padding-bottom:8px;border-bottom:1px solid var(--axis)}
+.thd small{font-size:.74rem;color:var(--ink2);line-height:1.5}
+.trow{display:grid;grid-template-columns:1.6em minmax(0,1fr) auto;gap:2px 8px;align-items:start;padding:8px 6px;border-bottom:1px solid var(--grid)}
+.trow .rk{color:var(--ink2);font-variant-numeric:tabular-nums;font-size:.8rem;padding-top:2px}
+.trow .tn{min-width:0}
+.trow .tn strong{font-weight:500;overflow-wrap:anywhere}
+.trow .tn small{display:block;font-size:.72rem;color:var(--ink2);line-height:1.4}
+.trow .tv{font-variant-numeric:tabular-nums;font-weight:700}
+.trow .pbt{grid-column:2/-1;height:6px}
+.trow.shared{background:var(--bg);border-radius:6px}
+.tag2{display:inline-block;font-size:.68rem;border:1px solid var(--axis);border-radius:999px;padding:0 7px;margin-left:6px;color:var(--ink2);white-space:nowrap;vertical-align:middle}
+.swipe{display:none}
+.copymsg{margin-top:8px}
+.copymsg textarea{margin-top:6px}
+@media (max-width:759px){
+  .cmp-wide{display:none}
+  .cmpcards{display:flex}
+  .topgrid{grid-auto-columns:84%}
+  .swipe{display:inline}
+}
+@media (max-width:560px){
+  .card{padding:16px}
+  .hero-num{font-size:2.4rem}
+  .pb{grid-template-columns:minmax(0,1fr) auto;gap:2px 8px}
+  .pb .pbl{grid-column:1;grid-row:1}
+  .pb .pbv{grid-column:2;grid-row:1;min-width:0}
+  .pb .pbt{grid-column:1/-1;grid-row:2}
+  .cr,.cax{grid-template-columns:minmax(0,1fr) 96px}
+  .cax>span:first-child{display:none}
+  .cr .nm{grid-column:1/-1;font-weight:700}
+  .lrow{grid-template-columns:minmax(0,1fr) 72px}
+  .lrow .unit{display:none}
+  .lrow .ghost{grid-column:1/-1;justify-self:end}
+  .stbl{min-width:0;font-size:.8rem}
+  .stbl th,.stbl td{padding:6px 4px}
+  .stbl th{white-space:normal}
+  .stbl .sc{white-space:normal}
+  .ledger{min-width:0}
+  .ledger thead{display:none}
+  .ledger tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid var(--grid)}
+  .ledger td{display:block;padding:0;border:0}
+  .ledger td::before{content:attr(data-l);display:block;font-size:.72rem;color:var(--ink2);margin-bottom:2px}
+  .ledger td.r{text-align:left}
+  .ledger td:nth-child(1){grid-column:1/-1}
+  .ledger td.tot{align-self:end;font-weight:700}
+  .ledger td.del{align-self:end;text-align:right}
+  .ledger td.del::before{display:none}
+}
+.wrap.wide{max-width:1240px}
+.cmp{font-size:.8rem}
+.cmp th{font-size:.74rem}
+.cmp td.name,.cmp th:first-child{white-space:nowrap}
+.cmp th:first-child,.cmp td:first-child{position:sticky;left:0;background:var(--surface);z-index:1}
+.cmp th,.cmp td{padding-left:4px;padding-right:4px}
+.cmp th{white-space:normal;line-height:1.3;vertical-align:bottom}
+a.btn,a.btn:visited,a.btn:hover,button.btn[data-req]{background:var(--ink);color:var(--surface);text-decoration:none;display:inline-block;font-weight:700}
+a.btn2{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px solid var(--accent);border-radius:6px;color:var(--accent);text-decoration:none;display:inline-block}
+.syncst{font-size:.78rem;color:var(--ink2);margin:-10px 0 0}
+.bzc{padding:12px 0;border-bottom:1px solid var(--grid)}
+.bzh{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin-bottom:6px}
+.bzv{font-weight:700;font-size:.9rem;padding:2px 10px;border:1px solid var(--grid);border-radius:999px}
+.bzr{display:grid;grid-template-columns:5.6em 1.6em minmax(0,1fr);gap:2px 8px;padding:4px 0;font-size:.85rem;align-items:baseline}
+.bzr b{text-align:center}
+.bzm{font-size:.82rem;color:var(--ink2);margin:0 0 4px}
+.bzf{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:end;margin:14px 0 6px}
+.bzf label{display:grid;gap:2px;font-size:.78rem;color:var(--ink2)}
+.bzf input{font:inherit;padding:7px 8px;border:1px solid var(--grid);border-radius:6px;background:var(--surface);color:var(--ink);width:9em}
+@media (max-width:560px){.bzr{grid-template-columns:4.6em 1.4em minmax(0,1fr)}}
+.reqmsg{font-size:.82rem;color:var(--ink2);margin-top:8px}
+.reqmsg:empty{display:none}
+.reqmsg textarea{display:block;width:100%;margin-top:6px;font:inherit;font-size:.8rem;padding:8px;border:1px solid var(--grid);border-radius:6px;background:var(--surface);color:var(--ink)}
+.plmode{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:.82rem;color:var(--ink2);margin:12px 0 6px}
+.pmb[aria-pressed=true]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.prbox{margin-top:28px;padding:16px;border:1px solid var(--grid);border-radius:12px;background:var(--surface)}
+.prbox h2{font-size:1rem;margin:4px 0 8px}
+.prbox p{margin:0 0 10px;font-size:.88rem}
+.prtag{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.08em;padding:1px 8px;border:1px solid var(--ink2);border-radius:4px;color:var(--ink2)}
+.prrows{display:grid;gap:0;margin:0 0 10px}
+.prrows>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:8px 0;border-top:1px solid var(--grid);font-size:.88rem;align-items:baseline}
+.prrows b{font-size:1rem}
+.prrows small{grid-column:1/-1;color:var(--ink2);font-size:.78rem}
+.prbox .prnote{color:var(--ink2);font-size:.78rem}
+.prcode{margin:12px 0;padding:12px;border-radius:8px;background:var(--track)}
+.prcode p{margin:0 0 8px}
+.prcodeline{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:8px;font-size:.88rem}
+.prcodeline code{font:700 1.05rem ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;padding:3px 10px;border:1px solid var(--grid);border-radius:6px;background:var(--surface);user-select:all}
+.bk{margin:16px 0;padding:12px;border:1px solid var(--grid);border-radius:8px;background:var(--surface)}
+.bk summary{cursor:pointer;font-weight:700}
+.bk textarea{font:12px ui-monospace,Menlo,Consolas,monospace;background:var(--surface);color:var(--ink);border:1px solid var(--grid);border-radius:6px;padding:6px;box-sizing:border-box}
+.bkfile{cursor:pointer;display:inline-block}
+/* calendar */
+.calnav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 10px}
+.calnav h3{margin:0;font-size:1.02rem}
+.calnav .rowbtn{flex-wrap:nowrap}
+.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--grid);border-left:1px solid var(--grid)}
+.calgrid>div{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);min-height:64px;padding:3px 4px;min-width:0;overflow:hidden}
+.calgrid>.dow{min-height:0;font-size:.72rem;color:var(--ink2);text-align:center;padding:5px 0}
+.calgrid>.off{background:var(--track)}
+.calgrid>.oth{opacity:.5}
+.dn{font-size:.78rem;display:inline-block;min-width:1.7em;text-align:center;line-height:1.7em;border-radius:999px}
+.today .dn{box-shadow:0 0 0 2px var(--accent);font-weight:700}
+.mks{display:flex;flex-direction:column;gap:1px;margin-top:2px}
+.mk{font-size:.68rem;line-height:1.15;color:var(--ink);overflow-wrap:anywhere}
+.mk i{font-style:normal;margin-right:1px}
+.calkey{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:.8rem;color:var(--ink2);margin:10px 0 0}
+.calkey i{font-style:normal;margin-right:3px}
+.evl{margin-top:14px}
+.evr{display:grid;grid-template-columns:5.6em 1.2em minmax(0,1fr);gap:2px 8px;padding:8px 0;border-bottom:1px solid var(--grid);font-size:.88rem;align-items:baseline}
+.evr.past{opacity:.55}
+.evr .evt{grid-column:3}
+.evr small{display:block;color:var(--ink2);font-size:.76rem}
+.nx{padding:10px 0;border-bottom:1px solid var(--grid);display:grid;gap:2px}
+.nx small{color:var(--ink2);font-size:.8rem}
+.nx b{font-weight:700}
+@media (max-width:560px){
+  .calgrid>div{min-height:54px;padding:2px}
+  .mk{font-size:.56rem}
+  .dn{font-size:.72rem}
+  .calnav .ghost{padding:5px 8px}
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>分配金利回り計算</h1>
+    <p class="lead">ファンドごとに分配金と評価額を記録して、元本の回収状況と、いまプラスかマイナスかを確認します。</p>
+  </header>
+
+  <div id="sample-note" class="sample" hidden>
+    <span>サンプルのファンドが入っています(金額や銘柄は例です)。</span>
+    <button type="button" class="ghost" id="clear-sample">サンプルをすべて消して自分のデータを入力する</button>
+  </div>
+
+  <nav class="tabs" id="tabs" aria-label="ファンドの切り替え"></nav>
+  <div class="syncst" id="syncst" role="status" aria-live="polite"></div>
+
+  <div id="v-fund" class="stack">
+    <section class="card" aria-labelledby="set-h">
+      <h2 id="set-h">ファンドの設定</h2>
+      <div class="grid2">
+        <div>
+          <label class="lbl" for="fund">ファンド名</label>
+          <input type="text" id="fund" placeholder="例: ○○グローバル高配当ファンド" autocomplete="off">
+        </div>
+        <div>
+          <label class="lbl" for="principal">投資元本(購入に使った合計・円)</label>
+          <input type="number" id="principal" inputmode="numeric" min="0" step="1" placeholder="例: 1000000">
+        </div>
+        <div>
+          <label class="lbl" for="value">現在の評価額(円)</label>
+          <input type="number" id="value" inputmode="numeric" min="0" step="1" placeholder="証券会社の画面の評価額">
+        </div>
+        <div>
+          <label class="lbl" for="valueDate">評価額の確認日</label>
+          <input type="date" id="valueDate">
+        </div>
+        <div>
+          <label class="lbl" for="plin">評価損益(円・マイナスは − を付けて入力)</label>
+          <input type="number" id="plin" inputmode="numeric" step="1" placeholder="例: -158000">
+        </div>
+        <div>
+          <button type="button" class="ghost" id="calc-principal">評価額 − 評価損益 を元本に入れる</button>
+        </div>
+        <label class="check" for="net">
+          <input type="checkbox" id="net">
+          <span>税引後で見る(普通分配金に20.315%課税)</span>
+        </label>
+      </div>
+      <p class="note foot" id="pl-calc" role="status" aria-live="polite" style="margin-top:12px"></p>
+      <div class="rowbtn" style="margin-top:14px" id="del-area"></div>
+    </section>
+
+    <section class="card" aria-labelledby="pl-h">
+      <h2 id="pl-h">いまの損益(評価額ベース)</h2>
+      <div id="pl"></div>
+    </section>
+
+    <section class="card" aria-labelledby="sum-h">
+      <h2 id="sum-h">元本の回収状況</h2>
+      <div id="summary"></div>
+    </section>
+
+    <section class="card" aria-labelledby="chart-h">
+      <div class="chart-head">
+        <h2 id="chart-h">累計の分配金と元本回収の進み具合</h2>
+        <div class="seg" role="group" aria-label="グラフの表示切り替え">
+          <button type="button" id="m-cum" aria-pressed="true">累計</button>
+          <button type="button" id="m-each" aria-pressed="false">1回ごと</button>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="chartwrap" id="chartwrap">
+        <div id="chart"></div>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="prof-h">
+      <div class="prof-head">
+        <h2 id="prof-h">投資内容</h2>
+        <button type="button" class="ghost" id="prof-toggle">内容を編集</button>
+      </div>
+      <div id="profile"></div>
+    </section>
+
+    <section class="card" aria-labelledby="led-h">
+      <h2 id="led-h">分配金の記録</h2>
+      <form id="addform" class="addrow" novalidate>
+        <div>
+          <label class="lbl" for="add-date">受取日</label>
+          <input type="date" id="add-date">
+        </div>
+        <div>
+          <label class="lbl" for="add-normal">普通分配金(円)</label>
+          <input type="number" id="add-normal" inputmode="numeric" min="0" step="1" placeholder="0">
+        </div>
+        <div>
+          <label class="lbl" for="add-special">特別分配金(円)</label>
+          <input type="number" id="add-special" inputmode="numeric" min="0" step="1" placeholder="0">
+        </div>
+        <div><button type="submit" class="btn" id="add-btn">追加する</button></div>
+      </form>
+      <p class="msg" id="msg" role="status" aria-live="polite"></p>
+      <div class="tablewrap">
+        <table class="ledger">
+          <thead>
+            <tr><th>受取日</th><th class="r">普通分配金(円)</th><th class="r">特別分配金(円)</th><th class="r">合計</th><th><span style="position:absolute;left:-9999px">削除</span></th></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p class="note foot">金額は保有分の合計(円)です。表の数字は税引前で、入力内容はこのブラウザに保存されます。</p>
+    </section>
+  </div>
+
+  <div id="v-compare" class="stack" hidden>
+    <section class="card" aria-labelledby="c1-h">
+      <h2 id="c1-h">ファンドの比較表</h2>
+      <div class="tablewrap" id="cmp-table"></div>
+    </section>
+    <section class="card" aria-labelledby="c2-h">
+      <h2 id="c2-h">元本の回収率(普通分配金と特別分配金を別々に)</h2>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--s1)"></i>普通分配金</span>
+        <span><i class="sw" style="background:var(--s2)"></i>特別分配金</span>
+        <span><i class="dash"></i>元本100%</span>
+      </div>
+      <div id="cmp-rec"></div>
+    </section>
+    <section class="card" aria-labelledby="c3-h">
+      <h2 id="c3-h">損益率(普通分配金のみ)(評価額 + 普通分配金 − 元本)÷ 元本</h2>
+      <div id="plmode-c"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--goodfill)"></i>プラス</span>
+        <span><i class="sw" style="background:var(--badfill)"></i>マイナス</span>
+      </div>
+      <div id="cmp-pl"></div>
+      <p class="note foot">特別分配金で基準価額が下がった分は評価額に反映済みなので、評価額と分配金を足した合計で見るのが目安になります。税金や手数料は含みません。</p>
+    </section>
+    <section class="card" aria-labelledby="c8-h">
+      <h2 id="c8-h">分配金カレンダー(決算日・分配落ち日・購入締切)</h2>
+      <div id="cmp-cal"></div>
+    </section>
+    <section class="card" aria-labelledby="c9-h">
+      <h2 id="c9-h">買い場チェック(AI基準の見立て)</h2>
+      <div id="cmp-buy"></div>
+    </section>
+    <section class="card" aria-labelledby="c7-h">
+      <h2 id="c7-h">各ファンドの上位10銘柄を見比べる</h2>
+      <div id="cmp-top"></div>
+      <div id="cmp-ref" class="refstat"></div>
+    </section>
+    <section class="card" aria-labelledby="c4-h">
+      <h2 id="c4-h">複数のファンドに共通する組入銘柄</h2>
+      <div id="cmp-overlap"></div>
+    </section>
+    <section class="card" aria-labelledby="c5-h">
+      <h2 id="c5-h">業種の偏り(上位10銘柄の内訳)</h2>
+      <div id="cmp-sector"></div>
+    </section>
+    <section class="card" aria-labelledby="c6-h">
+      <h2 id="c6-h">国・地域の偏り(上位10銘柄の内訳)</h2>
+      <div id="cmp-country"></div>
+    </section>
+  </div>
+  <aside class="prbox" aria-labelledby="pr-h">
+    <p class="prtag">PR</p>
+    <h2 id="pr-h">インベスコ、THE 5G、WCMを持つなら、松井証券がおすすめ</h2>
+    <p>松井証券の「投信残高ポイントサービス」では、投資信託を持っているだけで、毎月ポイントが付きます。月間の平均保有金額に、還元率(年率)を12で割った率をかけた分が、翌月15日ごろに付きます。</p>
+    <div class="prrows">
+      <div><span>インベスコ 世界厳選株式オープン</span><b>年0.8%</b><small>100万円で年8,000ポイント</small></div>
+      <div><span>次世代通信関連 世界株式戦略ファンド(THE 5G)</span><b>年0.75%</b><small>100万円で年7,500ポイント</small></div>
+      <div><span>WCM 世界成長株厳選ファンド</span><b>年0.7%</b><small>100万円で年7,000ポイント</small></div>
+    </div>
+    <div class="prcode">
+      <p><strong>新しく口座を開くとき、招待コードを入力すると、1,000ポイントもらえます。</strong></p>
+      <div class="prcodeline"><span>招待コード</span><code id="pr-code">AA035840</code><button type="button" class="ghost" id="pr-copy">コードをコピー</button><span id="pr-copymsg" role="status" aria-live="polite"></span></div>
+      <p class="prnote">口座開設の申込みのときに、コードを入力してください。入力がない場合や、間違っている場合は対象外です。口座開設の完了後に、所定のアンケートへの回答が必要です。すでに口座をお持ちの方、口座を閉じて開き直した方、未成年口座と法人口座は対象外です。プログラムの内容は、予告なく変わることがあります。</p>
+    </div>
+    <p class="prnote">還元率は2026年10月30日現在です。ポイントは1ポイント=1円で、dポイントなどに交換できます。毎月のエントリー(無料)が必要です。ポイントは課税対象(一時所得または雑所得)で、還元率やサービスの内容は変わることがあります。</p>
+    <p><a class="btn2" href="https://kimakura-hyu.com/matsui-code/" target="_blank" rel="noopener sponsored">松井証券の投信残高ポイントサービスを詳しく知る</a></p>
+  </aside>
+<details class="bk" id="bk">
+  <summary>記録のバックアップ(保存・復元)</summary>
+  <p class="prnote">記録はこのブラウザの中にだけ保存されています。ブラウザのデータを消すと失われるので、ときどき保存しておくと安心です。機種変更のときにも使えます。</p>
+  <div class="rowbtn"><button type="button" class="ghost" id="bk-exp">記録の文字列を出す</button></div>
+  <textarea id="bk-txt" rows="4" spellcheck="false" placeholder="「記録の文字列を出す」を押すと、ここに文字列が出ます。復元するときは、保存しておいた文字列をここに貼り付けて「貼り付けた内容で復元」を押してください。" style="width:100%;margin-top:8px"></textarea>
+  <div class="rowbtn"><button type="button" class="ghost" id="bk-copy">文字列をコピー</button><button type="button" class="ghost" id="bk-paste">貼り付けた内容で復元</button></div>
+  <p class="prnote" id="bk-msg" role="status" aria-live="polite"></p>
+</details>
+</div>
+
+<script>
+const KEY2='bunpaikin-tracker-v2', KEY1='bunpaikin-tracker-v1', TAX=0.20315;
+const num=v=>Math.max(0,Number(v)||0);
+const yen=n=>Math.round(n).toLocaleString('ja-JP')+'円';
+const sg=n=>(n>0?'+':n<0?'−':'')+Math.abs(Math.round(n)).toLocaleString('ja-JP')+'円';
+const sp=n=>(n>0?'+':n<0?'−':'')+Math.abs(n).toFixed(1)+'%';
+const cls=n=>n>0?'pos':n<0?'neg':'';
+const ico=n=>n>0?'▲':n<0?'▼':'●';
+const axisLab=v=>v===0?'0':(v>=10000?(+(v/10000).toFixed(2))+'万':v.toLocaleString('ja-JP'));
+const endLab=v=>v>=10000?(v/10000).toFixed(1)+'万':Math.round(v).toLocaleString('ja-JP');
+const shortDate=d=>d.slice(2,4)+'/'+d.slice(5,7);
+const longDate=d=>{const p=String(d).split('-');return p.length===3?p[0]+'年'+(+p[1])+'月'+(+p[2])+'日':d};
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const $=id=>document.getElementById(id);
+const sortRows=rows=>[...rows].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function emptyProfile(){return {cat:'',mgr:'',fee:'',freq:'',sday:'',smon:'',start:'',hedge:'',alloc:[],region:[],hold:[],memo:''}}
+function newFund(o){return Object.assign({id:uid(),name:'',principal:0,value:'',pl:'',valueDate:todayStr(),net:false,mode:'cum',sample:false,rows:[],profile:emptyProfile()},o||{})}
+
+function calc(rows,net){
+  const list=sortRows(rows).map(r=>{
+    const gn=num(r.normal), s=num(r.special);
+    const n=net?Math.round(gn*(1-TAX)):gn;
+    return {id:r.id,date:r.date,gn:gn,n:n,s:s,t:n+s};
+  });
+  let cn=0,cs=0,gn=0;
+  list.forEach(r=>{cn+=r.n;cs+=r.s;gn+=r.gn;r.cn=cn;r.cs=cs;r.ct=cn+cs;});
+  return {rows:list,tn:cn,ts:cs,total:cn+cs,gross:gn+cs,gn:gn};
+}
+const PLN=()=>state.plMode!=='all';
+const LBL=()=>PLN()?'損益(普通分配金のみ)':'トータル損益';
+const LBLR=()=>PLN()?'損益率(普通分配金のみ)':'トータル損益率';
+function plToggle(){
+  const n=PLN();
+  return '<div class="plmode" role="group" aria-label="分配金の数え方"><span>分配金の数え方</span>'+
+    '<button type="button" class="ghost pmb" data-plmode="n" aria-pressed="'+n+'">普通分配金のみ</button>'+
+    '<button type="button" class="ghost pmb" data-plmode="all" aria-pressed="'+!n+'">普通+特別</button></div>';
+}
+function metrics(f){
+  const d=calc(f.rows,f.net), principal=num(f.principal);
+  const hasValue=f.value!==''&&f.value!=null&&!isNaN(Number(f.value));
+  const value=hasValue?num(f.value):null;
+  const rate=principal>0?d.total/principal:null;
+  const unreal=value!==null?value-principal:null;
+  const totalPL=value!==null?value+(PLN()?d.tn:d.total)-principal:null;
+  const totalPct=(value!==null&&principal>0)?totalPL/principal*100:null;
+  const unrealPct=(value!==null&&principal>0)?unreal/principal*100:null;
+  return {d:d,principal:principal,value:value,rate:rate,unreal:unreal,unrealPct:unrealPct,totalPL:totalPL,totalPct:totalPct,allPL:value!==null?value+d.total-principal:null};
+}
+function niceTicks(max,count){
+  if(!(max>0))return [0,1];
+  const raw=max/count, mag=Math.pow(10,Math.floor(Math.log10(raw))), norm=raw/mag;
+  const step=(norm<=1?1:norm<=2?2:norm<=5?5:10)*mag;
+  const out=[]; for(let v=0;v<=Math.ceil(max/step)*step+1e-9;v+=step)out.push(Math.round(v));
+  return out;
+}
+function topRound(x,y,w,h,r){
+  r=Math.max(0,Math.min(r,h/2,w/2));
+  return 'M'+x+','+(y+h)+'V'+(y+r)+'Q'+x+','+y+' '+(x+r)+','+y+'H'+(x+w-r)+'Q'+(x+w)+','+y+' '+(x+w)+','+(y+r)+'V'+(y+h)+'Z';
+}
+
+/* ---------- state ---------- */
+function li(l,p){return {id:uid(),l:l,p:p}}
+function sampleFunds(){
+  const mk=(id,name,principal,value,rowsSrc,prof)=>newFund({id:id,name:name,principal:principal,value:value,valueDate:'2026-11-17',sample:true,
+    rows:rowsSrc.map((r,i)=>({id:id+i,date:r[0],normal:r[1],special:r[2]})),profile:prof});
+  const A=[[3200,2800],[3500,2500],[2400,3600],[4100,1900],[3800,2200],[2900,3100],[3300,2700],[2100,3900],[3600,2400],[3000,3000],[3400,2600]]
+    .map((p,i)=>['2026-'+String(i+1).padStart(2,'0')+'-15',p[0],p[1]]);
+  const B=[[2400,600],[2500,500],[2300,700],[2600,400],[2500,500],[2400,600],[2700,300],[2500,500],[2600,400],[2500,500],[2500,500]]
+    .map((p,i)=>['2026-'+String(i+1).padStart(2,'0')+'-15',p[0],p[1]]);
+  const C=[['2026-03-15',4500,0],['2026-06-15',4200,800],['2026-09-15',4600,0]];
+  return [
+    mk('sa','サンプルA 毎月分配型(高配当株)',1000000,842000,A,{
+      cat:'国内株式(高配当)',mgr:'サンプル投信',fee:'0.99',freq:'毎月',start:'2019-04-10',hedge:'—',
+      alloc:[li('国内株式',92),li('国内REIT',5),li('現金等',3)],
+      region:[li('日本',100)],
+      hold:[li('サンプル銘柄A',6.2),li('サンプル銘柄B',5.1),li('サンプル銘柄C',4.4),li('サンプル銘柄D',3.9),li('サンプル銘柄E',3.6)],
+      memo:'例: 特別分配金の割合が高い月が続いている。基準価額の推移を毎月確認する。'}),
+    mk('sb','サンプルB 毎月分配型(債券)',800000,815000,B,{
+      cat:'海外債券',mgr:'サンプル投信',fee:'0.77',freq:'毎月',start:'2020-09-01',hedge:'なし',
+      alloc:[li('先進国債券',70),li('新興国債券',25),li('現金等',5)],
+      region:[li('米国',45),li('欧州',25),li('新興国',25),li('その他',5)],
+      hold:[li('サンプル債券1',9.8),li('サンプル債券2',7.4),li('サンプル債券3',6.1)],
+      memo:''}),
+    mk('sc','サンプルC 年4回決算(バランス)',500000,541000,C,{
+      cat:'バランス型',mgr:'サンプル投信',fee:'0.55',freq:'年4回',start:'2021-12-20',hedge:'一部あり',
+      alloc:[li('国内株式',25),li('先進国株式',25),li('国内債券',25),li('先進国債券',25)],
+      region:[li('日本',50),li('先進国',50)],
+      hold:[li('サンプル投信X',50),li('サンプル投信Y',50)],
+      memo:'例: 長期保有。分配金は再投資せず受け取り。'})
+  ];
+}
+function normFund(f){
+  const o=newFund(f);
+  o.profile=Object.assign(emptyProfile(),f.profile||{});
+  ['alloc','region','hold'].forEach(k=>{o.profile[k]=(o.profile[k]||[]).map(x=>({id:x.id||uid(),l:x.l||'',p:x.p===''||x.p==null?'':Number(x.p)}))});
+  o.rows=(f.rows||[]).map(r=>({id:r.id||uid(),date:r.date||'',normal:num(r.normal),special:num(r.special)}));
+  return o;
+}
+function load(){
+  try{
+    const s=JSON.parse(localStorage.getItem(KEY2));
+    if(s&&Array.isArray(s.funds)&&s.funds.length)return {funds:s.funds.map(normFund),active:s.active,view:s.view==='compare'?'compare':'fund',refSeeded:Array.isArray(s.refSeeded)?s.refSeeded:[],at:+s.at||0,synced:!!s.synced,plMode:s.plMode==='all'?'all':'n'};
+  }catch(e){}
+  try{
+    const o=JSON.parse(localStorage.getItem(KEY1));
+    if(o&&Array.isArray(o.rows)){
+      const f=normFund({name:o.fund||'',principal:o.principal,net:!!o.net,mode:o.mode,rows:o.rows,sample:!!o.sample});
+      return {funds:[f],active:f.id,view:'fund'};
+    }
+  }catch(e){}
+  const fs=sampleFunds();
+  return {funds:fs,active:fs[0].id,view:'fund'};
+}
+function saveLocal(){try{localStorage.setItem(KEY2,JSON.stringify({funds:state.funds,active:state.active,view:state.view,refSeeded:state.refSeeded||[],at:state.at||0,synced:!!state.synced,plMode:state.plMode==='all'?'all':'n'}))}catch(e){}}
+function save(){state.at=Date.now();saveLocal();if(typeof pushSoon==='function')pushSoon()}
+/* ---------- 組入銘柄データ(ページに内蔵。更新は Claude に依頼して再公開) ---------- */
+const H=(l,p,sub,k)=>({l:l,p:p,sub:sub,k:k});
+const A=(l,p)=>({l:l,p:p});
+const REF={
+  inv:{
+    name:'インベスコ 世界厳選株式オープン(毎月決算型)', short:'インベスコ', asOf:'2026-10-30', 
+    src:[{t:'みんかぶ 組入銘柄(2026年10月30日・速報)',u:'https://itf.minkabu.jp/fund/18312991/detailed_info'},{t:'インベスコ 月次運用レポート(2026年9月末・資産配分と国別配分)',u:'https://jppdf.invesco.com/Monthly/312901_20261015.pdf'},{t:'マネックス証券(信託報酬)',u:'https://fund.monex.co.jp/detail/18312991'},{t:'SMBC 月次レポート(純資産総額・2026年9月末)',u:'https://www.smbc.co.jp/kojin/toushin/report/pdf/1830112026101610115931.pdf'}],
+    note:'愛称「世界のベスト」。為替ヘッジあり・なしの2コースがあり、組入銘柄は共通で、信託報酬はどちらも年1.903%(税込)です。上位10銘柄は10月末の速報(自動抽出のため誤りを含む場合があります。公式の10月分レポートは確認できていません)。資産配分と国別配分は9月末の公式レポートの値で、国別は上位5カ国だけの掲載です。純資産総額は9月末で、為替ヘッジなし(約4兆1,884億円)とあり(約91億円)の2つの数字を足した値です(資料に合計の記載はありません)。',
+    basic:{cat:'外国株式',mgr:'インベスコ・アセット・マネジメント',fee:'1.903',aum:'約4兆5,958億円(2026年11月20日・為替ヘッジなし)',freq:'毎月(23日)',sday:'23',smon:'毎月',start:'1999-01-07',hedge:'あり・なしの2コース'},
+    alloc:[A('外国株式',99.1),A('現金等',0.9)],
+    region:[A('アメリカ',49.3),A('イギリス',19.1),A('オランダ',7.1),A('香港',4.2),A('デンマーク',4.2)],
+    hold:[H('3iグループ',4.0,'イギリス / 金融','3i'),H('カナディアン・パシフィック・カンザス・シティ',3.9,'カナダ / 資本財・サービス','cpkc'),H('マイクロソフト',3.9,'アメリカ / 情報技術','msft'),H('友邦保険控股(AIAグループ)',3.8,'香港 / 金融','aia'),H('ビザ A',3.5,'アメリカ / 金融','visa'),H('DSV',3.3,'デンマーク / 資本財・サービス','dsv'),H('テキサス・インスツルメンツ',2.9,'アメリカ / 情報技術','txn'),H('クアルコム',2.8,'アメリカ / 情報技術','qcom'),H('コカ・コーラ・ユーロパシフィック・パートナーズ',2.8,'オランダ / 生活必需品','ccep'),H('メドライン',2.7,'アメリカ / ヘルスケア','medline')]
+  },
+  th5g:{
+    name:'次世代通信関連 世界株式戦略ファンド(予想分配金提示型)', short:'THE 5G', asOf:'2026-10-30', px:{v:-6.3,t:'基準価額が4営業日で約6.3%下落(11/16→11/20)'}, 
+    src:[{t:'月次運用レポート(2026年10月末)',u:'https://apl.wealthadvisor.jp/webasp/pdf/monthly/2017121501_M_202610.pdf'},{t:'マネックス証券(純資産総額)',u:'https://fund.monex.co.jp/detail/64311215'}],
+    note:'愛称「THE 5G(予想分配金提示型)」。米国のニューバーガー・バーマンが運用するファンドに投資します。2026年10月末の月次レポートは、同じ投資先ファンドを使う資産成長型のレポートで、上位10銘柄・資産配分・国別配分は投資先ファンドの値です(予想分配金提示型だけのレポートは見つけられませんでした)。国別は上位9カ国だけです。信託報酬は実質1.848%程度(税込)です。',
+    basic:{cat:'世界株式(次世代通信関連)',mgr:'三井住友トラスト・アセットマネジメント',fee:'1.848',aum:'約474.3億円(2026年11月20日)',freq:'毎月(7日)',sday:'7',smon:'毎月',start:'2021-05-10',hedge:'なし'},
+    alloc:[A('投資信託証券(投資先ファンド)',98.91),A('その他',1.09)],
+    region:[A('米国',60.44),A('台湾',11.69),A('日本',10.87),A('中国',3.46),A('韓国',3.18),A('オランダ',2.91),A('スイス',2.50),A('英国',1.79),A('フィンランド',0.68)],
+    hold:[H('アップル',5.91,'米国 / 情報技術','aapl'),H('エヌビディア',5.26,'米国 / 情報技術','nvda'),H('アマゾン・ドット・コム',5.17,'米国 / 一般消費財・サービス','amzn'),H('台湾セミコンダクター(TSMC)',3.89,'台湾 / 情報技術','tsmc'),H('サムスン電機',3.18,'韓国 / 情報技術','samsung-em'),H('村田製作所',3.05,'日本 / 情報技術','murata'),H('アドバンスト・マイクロ・デバイセズ',2.96,'米国 / 情報技術','amd'),H('テイクツー・インタラクティブ・ソフトウエア',2.81,'米国 / コミュニケーション・サービス','ttwo'),H('中際旭創',2.78,'中国 / 情報技術','innolight'),H('エリート・マテリアル',2.76,'台湾 / 情報技術','emc')]
+  },
+  wcm:{
+    name:'WCM 世界成長株厳選ファンド(予想分配金提示型)', short:'WCM', asOf:'2026-10-30', official:{t:'運用会社公式のファンドページを開く',u:'https://www.alamco.co.jp/fund/WCM_es/index.html'},
+    src:[{t:'月次運用レポート(2026年10月末)',u:'https://apl.wealthadvisor.jp/webasp/pdf/monthly/2021101301_M_202610.pdf'},{t:'マネックス証券',u:'https://fund.monex.co.jp/detail/6831221A'}],
+    note:'愛称「ネクスト・ジェネレーション」。2026年10月末の月次レポート(資産成長型と共通)から取りました。比率は対純資産総額、実質株式組入比率は予想分配金提示型の値(REITを含む)で、現金等は100%との差です。国別は上位8カ国だけです。信託報酬は年1.958%(税込)です。',
+    basic:{cat:'世界株式(成長株)',fee:'1.958',aum:'約5,401億円(2026年10月30日)',freq:'毎月(25日)',sday:'25',smon:'毎月',start:'2021-10-13',hedge:'なし'},
+    alloc:[A('実質株式(REIT含む)',93.4),A('現金等',6.6)],
+    region:[A('アメリカ',49.1),A('イギリス',12.4),A('韓国',5.7),A('ドイツ',5.5),A('台湾',5.2),A('イスラエル',4.3),A('アイルランド',3.1),A('ベルギー',3.0)],
+    hold:[H('ロールス・ロイス・ホールディングス',6.30,'イギリス / 資本財','rr'),H('シーメンス・エナジー',5.50,'ドイツ / 資本財','siemens-energy'),H('台湾セミコンダクター(TSMC)',5.20,'台湾 / 半導体・半導体製造装置','tsmc'),H('シャークニンジャ',5.00,'アメリカ / 耐久消費財・アパレル','sharkninja'),H('ウェルタワー',4.80,'アメリカ / 不動産投資信託(REIT)','welltower'),H('サムスン電子',4.50,'韓国 / テクノロジー・ハードウェア','samsung'),H('テバ・ファーマスーティカル・インダストリーズ',4.30,'イスラエル / 医薬品・バイオテクノロジー','teva'),H('マイクロソフト',4.00,'アメリカ / ソフトウェア・サービス','msft'),H('メタ・プラットフォームズ',3.80,'アメリカ / メディア・娯楽','meta'),H('チャールズリバー・ラボラトリーズ',3.30,'アメリカ / 医薬品・バイオテクノロジー','charles')]
+  },
+  gx563a:{
+    name:'グローバルX NASDAQ100・デイリー・カバード・コール ETF', short:'563A', asOf:'2026-10-30', px:{v:-7.2,t:'基準価額が1か月で約7.2%、3か月で約6.9%下落(11/20)'}, cal:{kind:'etf'}, official:{t:'運用会社公式のファンドページを開く',u:'https://globalxetfs.co.jp/funds/563A/index.html'},
+    src:[{t:'グローバルX 563Aのページ',u:'https://globalxetfs.co.jp/funds/563A/index.html'},{t:'ファクトシート(2026年10月末)',u:'https://globalxetfs.co.jp/funds/563A/563A_factsheet.pdf'},{t:'特設ページ(分配金のルール)',u:'https://globalxetfs.co.jp/special/lp_563A/'}],
+    note:'東京証券取引所に上場するETFです。組入銘柄の一覧は取得できていません。',
+    basic:{cat:'ETF(NASDAQ100・カバードコール)',mgr:'Global X Japan',fee:'0.2775',aum:'約712.0億円(2026年11月20日)',freq:'毎月(10日)',sday:'10',smon:'毎月',start:'2026-04-21',hedge:''},
+    alloc:[],region:[],hold:[],
+    rows:[{date:'2026-08-18',normal:198,special:0},{date:'2026-09-18',normal:280,special:0},{date:'2026-10-19',normal:366,special:0},{date:'2026-10-19',normal:473,special:0}]
+  }
+};
+function effProfile(f){
+  const p=f.profile, r=f.refKey&&REF[f.refKey]; if(!r)return p;
+  const o=Object.assign({},p);
+  Object.keys(r.basic||{}).forEach(k=>{if(!p[k])o[k]=r.basic[k]});
+  ['alloc','region','hold'].forEach(k=>{if(r[k]&&r[k].length)o[k]=r[k].map(x=>({id:'r-'+k+'-'+x.l,l:x.l,p:x.p,sub:x.sub||'',k:x.k||''}))});
+  return o;
+}
+const shortOf=f=>{const r=f.refKey&&REF[f.refKey];if(r&&r.short)return r.short;const n=f.name||'名称未設定';return n.length>12?n.split(/[ 　]/)[0]:n};
+const refFundList=()=>state.funds.filter(f=>f.refKey&&REF[f.refKey]).map(f=>({f:f,r:REF[f.refKey],n:shortOf(f)}));
+const ARTIFACT_URL='https://claude.ai/artifact/WqK1ZZX1gjBhswgdXimTbk';
+function reqText(){
+  const names=refFundList().map(q=>'・'+q.r.name).join('\n');
+  return '分配金利回り計算('+ARTIFACT_URL+')の組入銘柄を更新して。\n対象:\n'+names+'\n最新の月次レポートから上位10銘柄・基準日・信託報酬・決算日を調べて、同じURLのページに反映してください。';
+}
+function reqButtons(off){
+  return '<div class="rowbtn" style="margin-top:10px"><button type="button" class="btn" data-req="1">最新の情報にする</button>'+(off?'<a class="btn2" href="'+esc(off.u)+'" target="_blank" rel="noopener">'+esc(off.t)+'</a>':'')+'</div><div class="reqmsg" role="status" aria-live="polite"></div>';
+}
+document.addEventListener('click',e=>{
+  const a=e.target.closest&&e.target.closest('[data-req]'); if(!a)return;
+  const t=reqText(), rb=a.closest('.rowbtn'), box=rb&&rb.nextElementSibling;
+  if(!box||!box.classList.contains('reqmsg'))return;
+  const show=ok=>{
+    box.textContent=ok?'お願いする文章をコピーしました。Claudeのチャットに貼り付けて送ってください。':'コピーできませんでした。下の文章をコピーして、Claudeのチャットに貼り付けて送ってください。';
+    if(!ok){const ta=document.createElement('textarea');ta.readOnly=true;ta.rows=6;ta.value=t;ta.addEventListener('focus',()=>ta.select());box.appendChild(ta)}
+  };
+  try{navigator.clipboard.writeText(t).then(()=>show(true),()=>show(false))}catch(_){show(false)}
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('[data-plmode]'); if(!b)return;
+  state.plMode=b.dataset.plmode==='all'?'all':'n'; saveLocal(); renderAll();
+});
+document.addEventListener('click',e=>{
+  if(!(e.target.closest&&e.target.closest('#pr-copy')))return;
+  const t=document.getElementById('pr-code').textContent, m=document.getElementById('pr-copymsg');
+  const sel=()=>{const rg=document.createRange();rg.selectNodeContents(document.getElementById('pr-code'));const s=getSelection();s.removeAllRanges();s.addRange(rg);m.textContent='コピーできませんでした。選択したコードをコピーしてください。'};
+  try{navigator.clipboard.writeText(t).then(()=>{m.textContent='コピーしました'},sel)}catch(_){sel()}
+});
+function bkMsg(t){document.getElementById('bk-msg').textContent=t}
+function bkJSON(){return JSON.stringify({app:'bunpaikin',v:2,funds:state.funds,active:state.active,refSeeded:state.refSeeded||[],plMode:state.plMode==='all'?'all':'n'})}
+function bkRestore(txt){
+  let o;try{o=JSON.parse(txt)}catch(e){bkMsg('読み込めませんでした。保存した記録のファイルか文字列を使ってください。');return}
+  if(!o||o.app!=='bunpaikin'||!Array.isArray(o.funds)||!o.funds.length){bkMsg('このアプリの記録ではないようです。');return}
+  if(!window._bkOk){window._bkOk=1;bkMsg('いまの記録が、保存した内容に置き換わります。よければ、もう一度同じ操作をしてください。');return}
+  window._bkOk=0;
+  state.funds=o.funds.map(normFund);state.active=state.funds.some(f=>f.id===o.active)?o.active:state.funds[0].id;
+  state.refSeeded=Array.isArray(o.refSeeded)?o.refSeeded:[];state.plMode=o.plMode==='all'?'all':'n';
+  save();renderAll();bkMsg('復元しました。');
+}
+document.addEventListener('click',e=>{
+  const t=e.target.closest&&e.target.closest('#bk-exp,#bk-copy,#bk-paste'); if(!t)return;
+  const ta=document.getElementById('bk-txt');
+  if(t.id==='bk-exp'){
+    const j=bkJSON();ta.value=j;window._bkOk=0;
+    bkMsg('下の欄に記録の文字列を出しました。「文字列をコピー」を押して、メモなどに残してください。');
+  }else if(t.id==='bk-copy'){
+    if(!ta.value)ta.value=bkJSON();
+    try{navigator.clipboard.writeText(ta.value).then(()=>bkMsg('コピーしました。'),()=>{ta.select();bkMsg('コピーできませんでした。選択した文字列をコピーしてください。')})}catch(_){ta.select();bkMsg('コピーできませんでした。選択した文字列をコピーしてください。')}
+  }else bkRestore(ta.value);
+});
+function refBanner(r){
+  if(!r)return '';
+  return '<div class="refbar"><strong>基準日 '+esc(longDate(r.asOf))+'</strong> の組入データです。'+reqButtons(r.official)+'</div>';
+}
+function seedRefs(){
+  state.refSeeded=state.refSeeded||[];
+  const fresh=[];
+  Object.keys(REF).forEach(k=>{
+    if(state.refSeeded.indexOf(k)>=0)return;
+    state.refSeeded.push(k);
+    if(!state.funds.some(f=>f.refKey===k))fresh.push(normFund({refKey:k,name:REF[k].name}));
+  });
+  if(fresh.length){state.funds=fresh.concat(state.funds);state.active=fresh[0].id;state.view='fund'}
+  let ch=fresh.length>0;
+  Object.keys(REF).forEach(k=>{
+    const t='rows:'+k, q=REF[k];
+    if(!q.rows||state.refSeeded.indexOf(t)>=0)return;
+    state.refSeeded.push(t);
+    const f=state.funds.find(x=>x.refKey===k); if(!f)return;
+    q.rows.forEach(x=>{if(!f.rows.some(y=>y.date===x.date&&y.normal===x.normal&&y.special===x.special))f.rows.push({id:uid(),date:x.date,normal:x.normal,special:x.special})});
+    state.active=f.id;state.view='fund';ch=true;
+  });
+  const ord=Object.keys(REF), idx=f=>(f.refKey&&ord.indexOf(f.refKey)>=0)?ord.indexOf(f.refKey):999, ids=()=>state.funds.map(f=>f.id).join();
+  const before=ids();
+  state.funds=state.funds.map((f,i)=>[f,i]).sort((a,b)=>idx(a[0])-idx(b[0])||a[1]-b[1]).map(x=>x[0]);
+  if(ids()!==before)ch=true;
+  return ch;
+}
+
+let state=load();
+let editProf=false, armDelete=false;
+const cur=()=>state.funds.find(f=>f.id===state.active)||state.funds[0];
+if(!state.funds.find(f=>f.id===state.active))state.active=state.funds[0].id;
+if(seedRefs())saveLocal();
+
+/* ---------- tabs ---------- */
+function renderTabs(){
+  $('tabs').innerHTML=state.funds.map(f=>'<button type="button" class="tab" data-fund="'+esc(f.id)+'" title="'+esc(f.name||'')+'" aria-pressed="'+(state.view==='fund'&&state.active===f.id)+'">'+esc(shortOf(f))+'</button>').join('')+
+    '<button type="button" class="tab" data-view="compare" aria-pressed="'+(state.view==='compare')+'">見比べる</button>'+
+    '<button type="button" class="tab add" id="add-fund">＋ ファンドを追加</button>';
+  $('sample-note').hidden=!state.funds.some(f=>f.sample);
+  const a=$('tabs').querySelector('[aria-pressed="true"]');
+  try{if(a&&a.scrollIntoView)a.scrollIntoView({inline:'nearest',block:'nearest'})}catch(e){}
+}
+/* ---------- fund view ---------- */
+function renderSettings(){
+  const f=cur();
+  $('fund').value=f.name||'';
+  $('principal').value=f.principal?f.principal:'';
+  $('value').value=(f.value===''||f.value==null)?'':f.value;
+  $('valueDate').value=f.valueDate||'';
+  $('plin').value=(f.pl===''||f.pl==null)?'':f.pl;
+  renderPlCalc();
+  $('net').checked=!!f.net;
+  $('m-cum').setAttribute('aria-pressed',f.mode!=='each');
+  $('m-each').setAttribute('aria-pressed',f.mode==='each');
+  renderDelArea();
+}
+function plPrincipal(f){
+  const hasV=f.value!==''&&f.value!=null&&!isNaN(Number(f.value));
+  const hasP=f.pl!==''&&f.pl!=null&&!isNaN(Number(f.pl));
+  return {hasV:hasV,hasP:hasP,principal:(hasV&&hasP)?Number(f.value)-Number(f.pl):null};
+}
+function renderPlCalc(){
+  const f=cur(), el=$('pl-calc'), btn=$('calc-principal'), c=plPrincipal(f);
+  btn.disabled=!(c.hasV&&c.hasP&&c.principal>=0);
+  if(!c.hasV&&!c.hasP)el.textContent='証券会社の画面にある「評価額」と「評価損益」を入力すると、投資元本を逆算できます。';
+  else if(!c.hasV)el.textContent='評価額も入力してください。';
+  else if(!c.hasP)el.textContent='評価損益も入力してください。';
+  else if(c.principal<0)el.textContent='評価損益が評価額より大きいため、元本がマイナスになります。入力を確認してください。';
+  else el.textContent='投資元本の目安は '+yen(c.principal)+' です(評価額 '+yen(num(f.value))+' − 評価損益 '+sg(Number(f.pl))+')。'+
+    (c.principal===num(f.principal)?'いまの元本と同じです。':'ボタンで投資元本に入れられます。')+
+    ' 証券会社によっては、評価損益が購入時手数料を含む取得額を基準にしている場合があります。';
+}
+function renderDelArea(){
+  $('del-area').innerHTML=armDelete
+    ?'<span style="font-size:.85rem;color:var(--ink2)">このファンドと記録をすべて削除します。</span><button type="button" class="ghost danger" id="del-yes">削除する</button><button type="button" class="ghost" id="del-no">キャンセル</button>'
+    :'<button type="button" class="ghost danger" id="del-arm">このファンドを削除</button>';
+}
+function renderPL(){
+  const f=cur(), m=metrics(f), el=$('pl');
+  $('pl-h').textContent='いまの損益(評価額ベース)'+(f.valueDate&&m.value!==null?' '+longDate(f.valueDate)+'時点':'');
+  if(!m.principal){el.innerHTML='<p class="empty">投資元本を入力してください。</p>';return}
+  if(m.value===null){el.innerHTML='<p class="empty">現在の評価額を入力すると、評価損益と、分配金を含めた損益がここに表示されます。</p>';return}
+  const t=m.totalPL, word=t>0?'プラス':t<0?'マイナス':'損益なし';
+  const asset=m.value+m.d.total, S=Math.max(m.principal,asset)*1.04||1;
+  const w0=m.value/S*100, w1=m.d.tn/S*100, w2=m.d.ts/S*100, pm=m.principal/S*100;
+  el.innerHTML=
+   '<div class="verdict '+cls(t)+'"><span class="ic" aria-hidden="true">'+ico(t)+'</span><div>'+
+     '<div class="big">'+sg(t)+'<span style="font-size:1rem;font-weight:500">('+sp(m.totalPct)+')</span><span class="tag">'+word+'</span></div>'+
+     (PLN()?'<p style="color:var(--ink2)">評価額と受け取った普通分配金を合わせた、元本に対する損益です。特別分配金は元本の払い戻しなので、ここには入れていません。'+(m.d.ts>0?'(参考)特別分配金'+yen(m.d.ts)+'も含めると '+sg(m.allPL)+' です。':'')+'</p>':'<p style="color:var(--ink2)">評価額と受け取った分配金(普通+特別)を合わせた、元本に対するトータル損益です。</p>')+'</div></div>'+plToggle()+
+   '<div class="figs" style="margin-top:0">'+
+     '<div class="fig"><div class="k">現在の評価額</div><div class="v">'+yen(m.value)+'</div><div class="s">元本 '+yen(m.principal)+'</div></div>'+
+     '<div class="fig"><div class="k">評価損益(評価額 − 元本)</div><div class="v '+cls(m.unreal)+'">'+ico(m.unreal)+' '+sg(m.unreal)+'</div><div class="s '+cls(m.unreal)+'">'+sp(m.unrealPct)+'</div></div>'+
+     '<div class="fig"><div class="k">受け取った分配金'+(f.net?'(税引後)':'')+'</div><div class="v">'+yen(m.d.total)+'</div><div class="s">普通 '+yen(m.d.tn)+' / 特別 '+yen(m.d.ts)+'</div></div>'+
+     '<div class="fig"><div class="k">'+LBL()+'</div><div class="v '+cls(t)+'">'+ico(t)+' '+sg(t)+'</div><div class="s '+cls(t)+'">'+sp(m.totalPct)+'</div></div>'+
+   '</div>'+
+   '<h3 style="margin-top:20px">元本と、いまの資産(評価額 + 受取分配金)</h3>'+
+   '<div class="abar"><div class="abar-t" role="img" aria-label="元本 '+yen(m.principal)+' に対して、評価額と受取分配金の合計は '+yen(asset)+'">'+
+     '<div class="a0" style="width:'+w0+'%"></div><div class="a1" style="width:'+w1+'%"></div><div class="a2" style="width:'+w2+'%"></div></div>'+
+     '<i class="pmark" style="left:'+pm+'%"></i><span class="plab" style="left:'+pm+'%">元本</span></div>'+
+   '<div class="alegend"><span><i class="sw" style="background:var(--neutral)"></i>評価額</span>'+
+     '<span><i class="sw" style="background:var(--s1)"></i>普通分配金</span>'+
+     '<span><i class="sw" style="background:var(--s2)"></i>特別分配金</span>'+
+     '<span><i class="dash"></i>元本のライン(これより右ならプラス)</span></div>'+
+   '<p class="note">特別分配金を受け取ると、その分だけ基準価額が下がります。評価額だけを見るとマイナスでも、分配金を足すとプラスになることがあります。税金や手数料は含みません。</p>';
+}
+function renderSummary(){
+  const f=cur(), m=metrics(f), d=m.d, P=m.principal, el=$('summary');
+  $('sum-h').textContent=(f.name?shortOf(f)+' の':'')+'元本の回収状況';
+  if(!d.rows.length&&!P){el.innerHTML='<p class="empty">投資元本と分配金を入力すると、ここに回収率が表示されます。</p>';return}
+  if(!P){el.innerHTML='<p class="empty">投資元本を入力すると、回収率が計算されます。いまの分配金の累計は '+yen(d.total)+'(普通分配金 '+yen(d.tn)+'、特別分配金 '+yen(d.ts)+')です。</p>';return}
+  const total=d.total, S=Math.max(P,total), over=total>P, remain=Math.max(0,P-total);
+  const pct=n=>(n/P*100).toFixed(1)+'%';
+  const wN=d.tn/S*100, wS=d.ts/S*100, wU=remain/S*100;
+  const net=f.net?'(税引後)':'';
+  const txt=over
+    ?'元本 '+yen(P)+' を分配金で回収済みです。元本を超えて '+yen(total-P)+' を受け取っています。'
+    :'元本 '+yen(P)+' のうち '+yen(total)+' を回収しました(普通分配金 '+pct(d.tn)+' + 特別分配金 '+pct(d.ts)+')。元本の回収まで、あと '+yen(remain)+' です。';
+  const seg=(c,w,t)=>'<div class="'+c+'" style="width:'+w+'%">'+(w>=17?t:'')+'</div>';
+  const bar='<div class="rwrap"><div class="rbar" role="img" aria-label="元本を100%としたときの内訳。普通分配金 '+pct(d.tn)+'、特別分配金 '+pct(d.ts)+(over?'':'、未回収 '+pct(remain))+'">'+
+    seg('rn',wN,'普通 '+pct(d.tn))+seg('rs',wS,'特別 '+pct(d.ts))+(remain>0?'<div class="ru" style="flex:1">'+(wU>=17?'未回収 '+pct(remain):'')+'</div>':'')+
+    '</div>'+(over?'<i class="rmark" style="left:'+(P/S*100)+'%"></i>':'')+'</div>'+
+    '<div class="bar-scale"><span>0</span><span>'+(over?'破線 = 元本の100%':'元本の100%')+'</span></div>';
+  const cards='<div class="rcards">'+
+    '<div class="rcard"><div class="rk"><i class="sw" style="background:var(--s1)"></i>普通分配金</div><div class="rp">'+pct(d.tn)+'</div><div class="ra">'+yen(d.tn)+net+'</div><p class="rd">運用で得た利益から出る分配金です。課税対象です。</p></div>'+
+    '<div class="rcard"><div class="rk"><i class="sw" style="background:var(--s2)"></i>特別分配金</div><div class="rp">'+pct(d.ts)+'</div><div class="ra">'+yen(d.ts)+'</div><p class="rd">元本の払戻しにあたる分配金です。非課税ですが、受け取るほど基準価額と個別元本が下がります。</p></div>'+
+    '<div class="rcard"><div class="rk"><i class="sw" style="background:var(--neutral)"></i>'+(over?'元本を超えた分':'未回収の元本')+'</div><div class="rp">'+(over?((total-P)/P*100).toFixed(1)+'%':pct(remain))+'</div><div class="ra">'+yen(over?total-P:remain)+'</div><p class="rd">'+(over?'元本をすべて回収したあとに受け取った分です。':'まだ分配金で戻っていない元本です。')+'</p></div></div>';
+  let mix='';
+  if(total>0){
+    const a=d.tn/total*100, b=d.ts/total*100;
+    mix='<h3 style="margin-top:22px">受け取った分配金の中身</h3>'+
+      '<div class="bar-wrap" style="margin-top:6px" role="img" aria-label="受け取った分配金のうち、普通分配金 '+a.toFixed(1)+'%、特別分配金 '+b.toFixed(1)+'%"><div class="seg1" style="width:'+a+'%"></div><div class="seg2" style="width:'+b+'%"></div></div>'+
+      '<div class="bar-scale"><span>普通分配金 '+a.toFixed(1)+'%</span><span>特別分配金 '+b.toFixed(1)+'%</span></div>'+
+      '<p class="note" style="margin-top:8px">受け取った '+yen(total)+' のうち '+b.toFixed(1)+'% は元本の払戻しです。この割合が高いほど、利益ではなく元本を取り崩して分配している割合が大きくなります。</p>';
+  }
+  let note='';
+  if(P>0&&d.ts>0){
+    note='<p class="note">特別分配金は元本の払戻しにあたるため、個別元本はその分だけ下がります。ざっくり換算すると '+yen(P)+' から '+yen(Math.max(0,P-d.ts))+' への変化です。実際の個別元本は1口あたりで管理されるので、正確な数字は証券会社の取引報告書で確認してください。</p>';
+  }
+  el.innerHTML='<p class="lead" style="margin:0 0 2px">元本回収率(分配金の合計 ÷ 投資元本)'+net+'</p>'+
+    '<div class="hero"><p class="hero-num">'+(total/P*100).toFixed(1)+'<small>%</small></p><p class="hero-txt">'+txt+'</p></div>'+
+    '<h3 style="margin-top:18px">元本を100%としたときの内訳</h3>'+bar+cards+mix+note;
+}
+function renderChart(){
+  const f=cur(), el=$('chart'), tip=$('tip');
+  const d=calc(f.rows,f.net);
+  const cum=f.mode!=='each', principal=num(f.principal);
+  $('chart-h').textContent=cum?'累計の分配金と元本回収の進み具合':'分配金の内訳(1回ごと)';
+  $('legend').innerHTML=
+    '<span><i class="sw" style="background:var(--s1)"></i>普通分配金'+(f.net?'(税引後)':'')+'</span>'+
+    '<span><i class="sw" style="background:var(--s2)"></i>特別分配金</span>'+
+    (cum&&principal>0?'<span><i class="dash"></i>投資元本</span>':'');
+  tip.hidden=true;
+  if(!d.rows.length){el.innerHTML='<p class="empty">分配金を追加すると、ここにグラフが表示されます。</p>';return}
+  const W=Math.max(280,el.clientWidth||600), H=300, m={l:48,r:12,t:22,b:34};
+  const pw=W-m.l-m.r, ph=H-m.t-m.b, n=d.rows.length;
+  const vals=d.rows.map(r=>cum?{n:r.cn,s:r.cs}:{n:r.n,s:r.s});
+  let max=Math.max(...vals.map(v=>v.n+v.s));
+  if(cum&&principal>0)max=Math.max(max,principal);
+  const ticks=niceTicks(max*1.05,4), top=ticks[ticks.length-1];
+  const y=v=>m.t+ph-(v/top)*ph;
+  const band=pw/n, bw=Math.min(40,band*0.62);
+  let g='';
+  ticks.forEach(t=>{
+    const yy=y(t);
+    g+='<line class="'+(t===0?'bl':'gl')+'" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+yy+'" y2="'+yy+'"/>';
+    g+='<text class="tk" x="'+(m.l-8)+'" y="'+(yy+4)+'" text-anchor="end">'+axisLab(t)+'</text>';
+  });
+  const y0=y(0);
+  d.rows.forEach((r,i)=>{
+    const v=vals[i], cx=m.l+band*i+band/2, x=cx-bw/2, yN=y(v.n), yT=y(v.n+v.s);
+    const hN=y0-yN, hS=yN-yT;
+    if(v.s>0&&v.n>0){
+      g+='<rect class="b1" x="'+x+'" y="'+yN+'" width="'+bw+'" height="'+hN+'"/>';
+      g+='<path class="b2" d="'+topRound(x,yT,bw,Math.max(1,hS-2),3)+'"/>';
+    }else if(v.s>0){
+      g+='<path class="b2" d="'+topRound(x,yT,bw,hS,3)+'"/>';
+    }else if(v.n>0){
+      g+='<path class="b1" d="'+topRound(x,yN,bw,hN,3)+'"/>';
+    }
+    if(i===n-1)g+='<text class="vl" x="'+cx+'" y="'+(yT-6)+'" text-anchor="middle">'+endLab(v.n+v.s)+'</text>';
+  });
+  if(cum&&principal>0){
+    const yp=y(principal);
+    g+='<line class="ref" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+yp+'" y2="'+yp+'"/>';
+    g+='<text class="vl" x="'+(m.l+4)+'" y="'+(yp-6)+'">投資元本 '+yen(principal)+'</text>';
+  }
+  const step=Math.max(1,Math.ceil(n/Math.max(1,Math.floor(pw/46))));
+  d.rows.forEach((r,i)=>{
+    if(i%step===0||(i===n-1&&step===1)){
+      g+='<text class="tk" x="'+(m.l+band*i+band/2)+'" y="'+(H-12)+'" text-anchor="middle">'+shortDate(r.date)+'</text>';
+    }
+  });
+  d.rows.forEach((r,i)=>{
+    const v=vals[i];
+    const lab=longDate(r.date)+' 普通分配金 '+yen(v.n)+' 特別分配金 '+yen(v.s);
+    g+='<rect class="hit" data-i="'+i+'" x="'+(m.l+band*i)+'" y="'+m.t+'" width="'+band+'" height="'+ph+'" tabindex="0" aria-label="'+esc(lab)+'"/>';
+  });
+  const last=vals[n-1];
+  el.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="分配金の棒グラフ。最新時点で普通分配金 '+yen(last.n)+'、特別分配金 '+yen(last.s)+'">'+g+'</svg>';
+  const showTip=i=>{
+    const r=d.rows[i], v=vals[i], cx=m.l+band*i+band/2;
+    const rate=principal>0?(r.ct/principal*100).toFixed(1)+'%':'—';
+    tip.innerHTML='<strong>'+esc(longDate(r.date))+'</strong>'+
+      '<div class="row"><i class="sw" style="background:var(--s1)"></i>'+(cum?'累計 ':'')+'普通分配金 '+yen(v.n)+'</div>'+
+      '<div class="row"><i class="sw" style="background:var(--s2)"></i>'+(cum?'累計 ':'')+'特別分配金 '+yen(v.s)+'</div>'+
+      '<div>合計 '+yen(v.n+v.s)+'</div>'+(cum?'<div>元本回収率 '+rate+'</div>':'');
+    tip.hidden=false;
+    const tw=tip.offsetWidth, scale=el.clientWidth/W;
+    tip.style.left=Math.min(Math.max(cx*scale-tw/2,0),Math.max(0,el.clientWidth-tw))+'px';
+  };
+  el.querySelectorAll('.hit').forEach(h=>{
+    const i=+h.dataset.i;
+    h.addEventListener('mouseenter',()=>showTip(i));
+    h.addEventListener('focus',()=>showTip(i));
+    h.addEventListener('mouseleave',()=>{tip.hidden=true});
+    h.addEventListener('blur',()=>{tip.hidden=true});
+  });
+}
+
+/* ---------- profile (投資内容) ---------- */
+const LISTS=[['alloc','資産配分','資産クラスの比率'],['region','国・地域の配分','投資先の国・地域の比率'],['hold','組入上位銘柄','銘柄名と組入比率']];
+const BASIC=[['cat','分類','例: 国内株式、海外債券'],['mgr','運用会社',''],['fee','信託報酬(年率・%)','例: 0.99'],['aum','純資産総額','例: 約500億円(2026年10月末)'],['freq','決算頻度','例: 毎月、年4回'],['sday','決算日(毎月何日)','例: 23'],['smon','決算月','例: 毎月、3,6,9,12'],['start','設定日','例: 2019-04-10'],['hedge','為替ヘッジ','例: あり、なし']];
+function renderProfile(){
+  const f=cur(), el=$('profile'), r=f.refKey&&REF[f.refKey], ep=effProfile(f);
+  let p=f.profile;
+  $('prof-toggle').textContent=editProf?'編集を終わる':'内容を編集';
+  $('prof-h').textContent=(f.name?f.name+' の':'')+'投資内容';
+  if(editProf){
+    let h='<div class="editgrid">'+BASIC.map(b=>'<div><label class="lbl" for="pe-'+b[0]+'">'+b[1]+'</label><input type="text" id="pe-'+b[0]+'" data-pf="'+b[0]+'" placeholder="'+esc(b[2])+'" value="'+esc(p[b[0]])+'" autocomplete="off"></div>').join('')+'</div>';
+    h+='<div class="cols">'+LISTS.map(L=>{
+      const k=L[0];
+      if(r&&r[k]&&r[k].length)return '<div><h3>'+L[1]+'</h3><p class="sumline">基準日 '+esc(longDate(r.asOf))+' の自動更新データを表示しています。この項目はここでは編集できません。</p></div>';
+      return '<div><h3>'+L[1]+'</h3>'+
+        (p[k].map(x=>'<div class="lrow"><input type="text" id="pe-'+k+'-'+esc(x.id)+'-l" data-list="'+k+'" data-id="'+esc(x.id)+'" data-f="l" value="'+esc(x.l)+'" aria-label="'+L[1]+'の名前" placeholder="名前"><input type="number" id="pe-'+k+'-'+esc(x.id)+'-p" data-list="'+k+'" data-id="'+esc(x.id)+'" data-f="p" value="'+esc(x.p)+'" step="0.1" min="0" max="100" aria-label="'+L[1]+'の比率(%)" placeholder="%"><span class="unit">%</span><button type="button" class="ghost" data-ldel="'+k+'" data-id="'+esc(x.id)+'" aria-label="この行を削除">削除</button></div>').join(''))+
+        '<button type="button" class="ghost" data-ladd="'+k+'">＋ 行を追加</button></div>';
+    }).join('')+'</div>';
+    h+='<div style="margin-top:20px"><label class="lbl" for="pe-memo">メモ(投資方針、気になる点など)</label><textarea id="pe-memo" data-pf="memo">'+esc(p.memo)+'</textarea></div>';
+    el.innerHTML=h;return;
+  }
+  p=ep;
+  const hasAny=BASIC.some(b=>p[b[0]])||LISTS.some(L=>p[L[0]].length)||p.memo;
+  if(!hasAny){el.innerHTML='<p class="empty">投資内容はまだ入力されていません。「内容を編集」から、分類・資産配分・国と地域・組入上位銘柄・メモを追加できます。</p>';return}
+  const fmt=(k,v)=>k==='fee'?(isNaN(parseFloat(v))?v:v+'%(100万円あたり年'+yen(parseFloat(v)*10000)+')'):k==='start'?longDate(v):k==='sday'?(/^\d+$/.test(String(v).trim())?v+'日':v):v;
+  let h=refBanner(r)+'<dl class="dl">'+BASIC.filter(b=>p[b[0]]).map(b=>'<div><dt>'+b[1].replace(/(年率・%)/,'年率')+'</dt><dd>'+esc(fmt(b[0],p[b[0]]))+'</dd></div>').join('')+'</dl>';
+  const cols=LISTS.filter(L=>p[L[0]].length).map(L=>{
+    const items=p[L[0]], sum=items.reduce((a,x)=>a+num(x.p),0);
+    return '<div><h3>'+L[1]+'</h3>'+items.map(x=>{
+      const v=num(x.p);
+      return '<div class="pb"><span class="pbl">'+esc(x.l||'名称なし')+(x.sub?'<small class="sub">'+esc(x.sub)+'</small>':'')+'</span><div class="pbt"><div class="pbf" style="width:'+Math.min(100,v)+'%"></div></div><span class="pbv">'+v.toFixed(2).replace(/0$/,'')+'%</span></div>';
+    }).join('')+'<p class="sumline">合計 '+(+sum.toFixed(2))+'%'+(L[0]!=='hold'&&!(r&&r[L[0]]&&r[L[0]].length)&&Math.abs(sum-100)>0.5?'(100%になっていません)':'')+'</p></div>';
+  });
+  if(cols.length)h+='<div class="cols">'+cols.join('')+'</div>';
+  if(p.memo)h+='<div style="margin-top:20px"><h3>メモ</h3><p class="memo">'+esc(p.memo)+'</p></div>';
+  el.innerHTML=h;
+}
+
+/* ---------- ledger ---------- */
+function buildTable(){
+  const f=cur(), rows=sortRows(f.rows);
+  $('rows').innerHTML=rows.length?rows.map(r=>{
+    const id=esc(r.id);
+    return '<tr>'+
+      '<td data-l="受取日"><input type="date" id="d-'+id+'" data-id="'+id+'" data-f="date" value="'+esc(r.date)+'" aria-label="受取日"></td>'+
+      '<td class="r" data-l="普通分配金(円)"><input type="number" id="n-'+id+'" data-id="'+id+'" data-f="normal" inputmode="numeric" min="0" step="1" value="'+num(r.normal)+'" aria-label="普通分配金(円)"></td>'+
+      '<td class="r" data-l="特別分配金(円)"><input type="number" id="s-'+id+'" data-id="'+id+'" data-f="special" inputmode="numeric" min="0" step="1" value="'+num(r.special)+'" aria-label="特別分配金(円)"></td>'+
+      '<td class="r tot" data-l="合計" id="t-'+id+'">'+yen(num(r.normal)+num(r.special))+'</td>'+
+      '<td class="r del"><button type="button" class="ghost" data-del="'+id+'" aria-label="'+esc(longDate(r.date))+'の記録を削除">削除</button></td></tr>';
+  }).join(''):'<tr><td colspan="5"><p class="empty">まだ記録がありません。上のフォームから最初の分配金を追加してください。</p></td></tr>';
+}
+/* ---------- compare ---------- */
+/* ---------- 組入銘柄の分析(業種・国・共通銘柄) ---------- */
+const SECTORS=['情報技術','金融','資本財・サービス','一般消費財','ヘルスケア','生活必需品','コミュニケーション','不動産'];
+const SEC={dsv:'資本財・サービス',qcom:'情報技術','3i':'金融',aia:'金融',visa:'金融',scb:'金融',cpkc:'資本財・サービス',rr:'資本財・サービス',furukawa:'資本財・サービス','siemens-energy':'資本財・サービス',
+  msft:'情報技術',txn:'情報技術',aapl:'情報技術',nvda:'情報技術',tsmc:'情報技術',mrvl:'情報技術',screen:'情報技術',murata:'情報技術',innolight:'情報技術',samsung:'情報技術',
+  amzn:'一般消費財',sharkninja:'一般消費財',medline:'ヘルスケア',teva:'ヘルスケア',charles:'ヘルスケア',ccep:'生活必需品',meta:'コミュニケーション',welltower:'不動産','samsung-em':'情報技術',amd:'情報技術',ttwo:'コミュニケーション',emc:'情報技術'};
+const CO={dsv:'デンマークの物流大手。海上・航空・陸上の国際輸送を手がける',qcom:'スマートフォン向け半導体と通信技術(5Gなど)の大手','3i':'英国の投資会社。未上場企業への投資が中心で、欧州の小売チェーンなどを保有',aia:'アジア太平洋の生命保険大手。香港が拠点',cpkc:'カナダ・米国・メキシコを結ぶ北米の鉄道会社',
+  msft:'ソフトウェアとクラウド(Azure、Office)の大手。AI分野にも積極投資',rr:'航空機エンジンの大手。防衛事業や小型原子炉も手がける',visa:'世界最大級のカード決済ネットワーク',
+  txn:'アナログ半導体の大手。産業機器や車載向けに強い',medline:'医療用品の製造・流通を手がける米国の会社',ccep:'コカ・コーラの飲料を欧州などで製造・販売するボトラー',scb:'アジア・アフリカ・中東に強い英国の銀行',
+  aapl:'iPhoneなどの端末とサービスを提供する情報技術の大手',nvda:'AIやデータセンター向けのGPU(画像処理半導体)大手',amzn:'ネット通販とクラウド(AWS)の大手',tsmc:'半導体の受託製造(ファウンドリ)で世界最大手',
+  mrvl:'データセンター向けの通信・カスタム半導体',screen:'半導体製造装置(洗浄装置など)の日本メーカー',furukawa:'光ファイバーやケーブルなど、通信インフラ向け部材のメーカー',murata:'積層セラミックコンデンサなど電子部品の大手',
+  meta:'Facebook・Instagramなどを運営。広告収入とAI投資が大きい',innolight:'データセンター向けの光トランシーバー(光通信モジュール)メーカー',
+  'siemens-energy':'発電・送電設備(ガスタービン、送電網機器)のドイツ企業',sharkninja:'掃除機や調理家電のメーカー',welltower:'高齢者向け住宅などヘルスケア施設に投資する米国のREIT',
+  samsung:'メモリ半導体やスマートフォン、家電の韓国大手',teva:'ジェネリック(後発)医薬品の大手。イスラエルの会社',charles:'創薬研究向けの実験動物や受託研究を提供する米国企業'};
+const secIdx=s=>{const i=SECTORS.indexOf(s);return i<0?8:i};
+const secColor=i=>i<8?'var(--c'+(i+1)+')':'var(--neutral)';
+const ctryOf=sub=>{const c=String(sub||'').split(' / ')[0].trim();return c==='アメリカ'?'米国':(c||'不明')};
+function renderHoldingAnalysis(){
+  const rf=state.funds.filter(f=>f.refKey&&REF[f.refKey]&&REF[f.refKey].hold&&REF[f.refKey].hold.length).map(f=>({f:f,r:REF[f.refKey],n:REF[f.refKey].short||f.name}));
+  const dates=rf.map(q=>q.n+' '+longDate(q.r.asOf)).join('、');
+  const w1=n=>n.toFixed(1)+'%', w2=n=>n.toFixed(2).replace(/0$/,'')+'%';
+  const none='<p class="empty">組入銘柄データのあるファンドがありません。</p>';
+  const swatch=(sc)=>'<i class="sw" style="background:'+secColor(secIdx(sc))+'"></i>';
+
+  // 共通する銘柄
+  let o='';
+  if(rf.length<2){o='<p class="empty">組入銘柄データのあるファンドが2つ以上あると、共通する銘柄を比べられます。</p>'}
+  else{
+    const map={};
+    rf.forEach((q,qi)=>q.r.hold.forEach(x=>{if(!x.k)return;(map[x.k]=map[x.k]||[]).push({qi:qi,name:q.n,p:x.p,l:x.l,sub:x.sub})}));
+    const keys=Object.keys(map).filter(k=>map[k].length>=2).sort((a,b)=>map[b].reduce((s,x)=>s+x.p,0)-map[a].reduce((s,x)=>s+x.p,0));
+    let pairs='';
+    for(let i=0;i<rf.length;i++)for(let j=i+1;j<rf.length;j++){
+      let tot=0,cnt=0;
+      keys.forEach(k=>{const a=map[k].find(x=>x.qi===i),b=map[k].find(x=>x.qi===j);if(a&&b){tot+=Math.min(a.p,b.p);cnt++}});
+      pairs+='<div class="ov"><strong>'+esc(rf[i].n)+' × '+esc(rf[j].n)+'</strong><span>'+(cnt?'重なり '+w2(tot)+'('+cnt+'銘柄)':'共通する銘柄なし')+'</span></div>';
+    }
+    o='<h3>ファンドの組み合わせごとの重なり</h3>'+pairs+
+      '<p class="note foot">重なりは、共通する銘柄ごとに2つのファンドの比率の小さい方を足した値です。大きいほど、同じ銘柄の値動きから2つのファンドが同時に影響を受けやすくなります。</p>'+
+      '<h3 style="margin-top:20px">共通する銘柄の中身</h3>';
+    o+=keys.length?keys.map(k=>{
+      const arr=map[k], sec=SEC[k]||'その他', info=CO[k]||'';
+      const hi=arr.reduce((a,b)=>b.p>a.p?b:a);
+      const bars=arr.map(x=>'<div class="pb"><span class="pbl">'+esc(x.name)+'<small class="sub">'+esc(x.sub)+'</small></span><div class="pbt"><div class="pbf" style="width:'+Math.min(100,x.p*10)+'%"></div></div><span class="pbv">'+w2(x.p)+'</span></div>').join('');
+      return '<div class="ovc"><div class="ovh"><strong>'+esc(arr[0].l)+'</strong><span class="chip">'+swatch(sec)+esc(sec)+'</span></div>'+
+        (info?'<p class="ovd">'+esc(info)+'</p>':'')+bars+
+        '<p class="ovn">'+arr.map(x=>esc(x.name)).join('と')+'の両方に入っています。比率が最も高いのは'+esc(hi.name)+'('+w2(hi.p)+')で、この銘柄の株価が動くと、どちらのファンドの基準価額にも影響します。</p></div>';
+    }).join(''):'<p class="empty">上位10銘柄で共通するものはありません。</p>';
+  }
+  if(rf.length)o+='<p class="note foot">各ファンドの上位10銘柄だけを比べています。11位以下に共通する銘柄がある可能性があります。基準日はそろっていません('+esc(dates)+')。</p>';
+  $('cmp-overlap').innerHTML=o;
+
+  // 業種の偏り
+  let s='';
+  if(!rf.length)s=none;
+  else{
+    const sh=rf.map(q=>{const t={};let T=0;q.r.hold.forEach(x=>{const sc=SEC[x.k]||'その他';t[sc]=(t[sc]||0)+x.p;T+=x.p});return {t:t,T:T}});
+    const present=SECTORS.concat(['その他']).filter(sc=>sh.some(z=>z.t[sc]>0));
+    s='<div class="legend">'+present.map(sc=>'<span>'+swatch(sc)+esc(sc)+'</span>').join('')+'</div>';
+    rf.forEach((q,i)=>{
+      const z=sh[i];
+      const segs=present.filter(sc=>z.t[sc]>0).map(sc=>'<div style="width:'+(z.t[sc]/z.T*100)+'%;background:'+secColor(secIdx(sc))+'" title="'+esc(sc)+' '+w1(z.t[sc]/z.T*100)+'"></div>').join('');
+      const aria=present.filter(sc=>z.t[sc]>0).map(sc=>sc+' '+w1(z.t[sc]/z.T*100)).join('、');
+      s+='<div class="cr"><span class="nm">'+esc(q.n)+'</span><div class="sbar" role="img" aria-label="'+esc(q.n+' 上位10銘柄の業種: '+aria)+'">'+segs+'</div><span class="cv" style="font-weight:500;font-size:.78rem">上位10計 '+w1(z.T)+'</span></div>';
+    });
+    s+='<div class="tablewrap"><table class="stbl"><thead><tr><th>業種(上位10銘柄の中の割合)</th>'+rf.map(q=>'<th class="r">'+esc(q.n)+'</th>').join('')+'</tr></thead><tbody>'+
+      present.map(sc=>'<tr><td><span class="sc">'+swatch(sc)+esc(sc)+'</span></td>'+sh.map(z=>'<td class="r">'+(z.t[sc]>0?w1(z.t[sc]/z.T*100):'—')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+    const ins=rf.map((q,i)=>{
+      const z=sh[i], top=Object.keys(z.t).sort((a,b)=>z.t[b]-z.t[a])[0], share=z.t[top]/z.T*100;
+      const cnt=q.r.hold.filter(x=>(SEC[x.k]||'その他')===top).length;
+      const lvl=share>=50?'偏りが大きく、':share>=35?'やや偏りがあり、':'特定の業種に偏らず、';
+      return '<li><strong>'+esc(q.n)+'</strong>: '+lvl+'最大は'+esc(top)+'で、上位10銘柄のうち'+cnt+'銘柄、'+w1(share)+'を占めます。</li>';
+    });
+    if(rf.length>=2){
+      const all=present.filter(sc=>sh.every(z=>z.t[sc]>0)).sort((a,b)=>sh.reduce((t,z)=>t+(z.t[b]||0)/z.T,0)-sh.reduce((t,z)=>t+(z.t[a]||0)/z.T,0));
+      if(all.length)ins.push('<li><strong>全ファンドに入っている業種</strong>: '+all.map(esc).join('、')+'。'+esc(all[0])+'の割合は、'+rf.map((q,i)=>esc(q.n)+' '+w1((sh[i].t[all[0]]||0)/sh[i].T*100)).join('、')+'です。同じ業種の景気や金利の影響を、複数のファンドが同時に受けます。</li>');
+    }
+    s+='<ul class="insights">'+ins.join('')+'</ul>'+
+      '<p class="note foot">業種は、各資料の分類をこのページで大まかな区分にまとめたものです。上位10銘柄は純資産の一部(合計は'+rf.map((q,i)=>esc(q.n)+' '+w1(sh[i].T)).join('、')+')なので、ファンド全体の業種配分とは異なります。</p>';
+  }
+  $('cmp-sector').innerHTML=s;
+
+  // 国・地域の偏り
+  let c='';
+  if(!rf.length)c=none;
+  else{
+    const cs=rf.map(q=>{const t={};let T=0;q.r.hold.forEach(x=>{const k=ctryOf(x.sub),n=1;t[k]=t[k]||{p:0,n:0};t[k].p+=x.p;t[k].n+=n;T+=x.p});return {t:t,T:T}});
+    c='<div class="cols">'+rf.map((q,i)=>{
+      const z=cs[i];
+      return '<div><h3>'+esc(q.n)+'</h3>'+Object.keys(z.t).sort((a,b)=>z.t[b].p-z.t[a].p).map(k=>{
+        const v=z.t[k].p/z.T*100;
+        return '<div class="pb"><span class="pbl">'+esc(k)+'<small class="sub">'+z.t[k].n+'銘柄</small></span><div class="pbt"><div class="pbf" style="width:'+v+'%"></div></div><span class="pbv">'+w1(v)+'</span></div>';
+      }).join('')+'</div>';
+    }).join('')+'</div>';
+    c+='<ul class="insights">'+rf.map((q,i)=>{
+      const z=cs[i], top=Object.keys(z.t).sort((a,b)=>z.t[b].p-z.t[a].p)[0];
+      return '<li><strong>'+esc(q.n)+'</strong>: 最大は'+esc(top)+'で、上位10銘柄のうち'+z.t[top].n+'銘柄、'+w1(z.t[top].p/z.T*100)+'を占めます(国は資料の表記)。</li>';
+    }).join('')+'</ul>'+
+    '<p class="note foot">上位10銘柄だけの内訳です。ファンド全体の国別配分は、各ファンドの「投資内容」で確認できます(取得できたファンドのみ)。</p>';
+  }
+  $('cmp-country').innerHTML=c;
+}
+
+function renderTopHoldings(){
+  const rf=refFundList().filter(q=>q.r.hold&&q.r.hold.length), el=$('cmp-top');
+  const w1=n=>n.toFixed(1)+'%', w2=n=>n.toFixed(2).replace(/0$/,'')+'%';
+  if(!rf.length){el.innerHTML='<p class="empty">組入銘柄データのあるファンドがありません。</p>';return}
+  const who={};
+  rf.forEach(q=>q.r.hold.forEach(x=>{if(x.k)(who[x.k]=who[x.k]||[]).push(q.n)}));
+  el.innerHTML='<p class="note foot" style="margin:0 0 10px">'+(rf.length>1?'他のファンドにも入っている銘柄には「共通」の印を付けています。':'')+'<span class="swipe">横にスワイプして、ほかのファンドを見られます。</span></p>'+
+    '<div class="topgrid">'+rf.map(q=>{
+      const T=q.r.hold.reduce((s,x)=>s+x.p,0), sh=q.r.hold.filter(x=>x.k&&who[x.k].length>1).length;
+      return '<div class="topcol"><div class="thd"><strong>'+esc(q.n)+'</strong><small>基準日 '+esc(longDate(q.r.asOf))+'<br>上位10銘柄の合計 '+w1(T)+(sh?'、共通 '+sh+'銘柄':'')+'</small></div>'+
+        q.r.hold.map((x,i)=>{
+          const others=(x.k&&who[x.k]||[]).filter(n=>n!==q.n);
+          return '<div class="trow'+(others.length?' shared':'')+'"><span class="rk">'+(i+1)+'</span><div class="tn"><strong>'+esc(x.l)+'</strong>'+(others.length?'<span class="tag2">共通 '+esc(others.join('・'))+'</span>':'')+'<small>'+esc(x.sub||'')+'</small></div><span class="tv">'+w2(x.p)+'</span><div class="pbt"><div class="pbf" style="width:'+Math.min(100,x.p*10)+'%"></div></div></div>';
+        }).join('')+'</div>';
+    }).join('')+'</div>';
+}
+function renderRefStatus(){
+  const rf=refFundList(), el=$('cmp-ref');
+  if(!rf.length){el.innerHTML='';return}
+  const now=new Date(), ym=now.getFullYear()*12+now.getMonth(), exp=ym-(now.getDate()>=16?1:2);
+  const rows=rf.map(q=>{
+    const d=new Date(q.r.asOf+'T00:00:00'), days=Math.max(0,Math.floor((now-d)/86400000));
+    const stale=(d.getFullYear()*12+d.getMonth())<exp;
+    return '<div class="ov"><strong>'+esc(q.n)+'</strong><span>基準日 '+esc(longDate(q.r.asOf))+'('+days+'日前)<span class="tag2" style="color:'+(stale?'var(--bad)':'var(--good)')+'">'+(stale?'新しい月次データが出ている可能性':'最新の可能性が高い')+'</span></span></div>';
+  }).join('');
+  el.innerHTML='<h3 style="margin-top:20px">組入銘柄データの更新</h3>'+rows+
+    '<p class="note foot" style="margin-top:10px">このページは外部サイトを直接見られないため、自動では更新されません。ボタンを押すと、更新の依頼文が入力済みの新しいチャットが開きます(送信は自分で押します)。</p>'+reqButtons();
+}
+
+/* ---------- 分配金カレンダー ---------- */
+const HOL=new Set(['2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20','2026-04-29','2026-05-03','2026-05-04','2026-05-05','2026-05-06','2026-07-20','2026-08-11','2026-09-21','2026-09-22','2026-09-23','2026-10-12','2026-11-03','2026-11-23',
+  '2027-01-01','2027-01-11','2027-02-11','2027-02-23','2027-03-21','2027-03-22','2027-04-29','2027-05-03','2027-05-04','2027-05-05','2027-07-19','2027-08-11','2027-09-20','2027-09-23','2027-10-11','2027-11-03','2027-11-23']);
+const pad2=n=>String(n).padStart(2,'0');
+const fmtD=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+const WD='日月火水木金土';
+const wdf=d=>(d.getMonth()+1)+'/'+d.getDate()+'('+WD[d.getDay()]+')';
+const isBiz=d=>{const w=d.getDay();if(w===0||w===6)return false;if(HOL.has(fmtD(d)))return false;const m=d.getMonth(),dd=d.getDate();if(m===11&&dd===31)return false;if(m===0&&dd<=3)return false;return true};
+function addBiz(d,n){const x=new Date(d),st=n<0?-1:1;let c=Math.abs(n);while(c>0){x.setDate(x.getDate()+st);if(isBiz(x))c--}return x}
+function nextBiz(d){const x=new Date(d);while(!isBiz(x))x.setDate(x.getDate()+1);return x}
+let calM=(()=>{const d=new Date();return {y:d.getFullYear(),m:d.getMonth()}})();
+const CAL_T={cut:{ic:'◆',n:'購入締切(目安)',d:'決算日の前営業日の15:30まで'},ex:{ic:'●',n:'決算日(分配落ち日)',d:'この日の基準価額から分配金が差し引かれます'},pay:{ic:'▲',n:'支払開始(目安)',d:'決算日から5営業日目'}};
+const CAL_TK={etf:{cut:{ic:'◆',n:'権利付最終売買日',d:'この日までに買うと分配金の対象です(決算日の2営業日前)。翌営業日が権利落ち日です'},ex:{ic:'●',n:'決算日(権利確定日)',d:'決算日は毎月10日です'},pay:{ic:'▲',n:'支払開始(目安)',d:'決算日の約40日後です。正確な日付は運用会社の「収益分配のお知らせ」で確認します'}}};
+const tT=(o,t)=>(CAL_TK[o.info.kind]||CAL_T)[t];
+const INIT={inv:'イ',th5g:'5G',wcm:'W'};
+function calInfo(f){
+  const p=effProfile(f), day=parseInt(String(p.sday||'').replace(/[^\d]/g,''),10);
+  if(!(day>=1&&day<=31))return null;
+  const t=String(p.smon||''); let mons=[];
+  if(!t||/毎月/.test(t))mons=[0,1,2,3,4,5,6,7,8,9,10,11];
+  else mons=(t.match(/\d+/g)||[]).map(x=>+x-1).filter(x=>x>=0&&x<12);
+  if(!mons.length)mons=[0,1,2,3,4,5,6,7,8,9,10,11];
+  const rr=f.refKey&&REF[f.refKey];
+  return {day:day,mons:mons,kind:(rr&&rr.cal&&rr.cal.kind)||''};
+}
+function fundEvents(info,y0,m0,months){
+  const ev=[];
+  for(let i=0;i<months;i++){
+    const d0=new Date(y0,m0+i,1), y=d0.getFullYear(), m=d0.getMonth();
+    if(!info.mons.includes(m))continue;
+    const dim=new Date(y,m+1,0).getDate();
+    if(info.kind==='etf'){
+      const ex=new Date(y,m,Math.min(info.day,dim)), pd=new Date(ex); pd.setDate(pd.getDate()+40);
+      ev.push({t:'cut',d:addBiz(ex,-2)},{t:'ex',d:ex},{t:'pay',d:nextBiz(pd)});
+      continue;
+    }
+    const ex=nextBiz(new Date(y,m,Math.min(info.day,dim)));
+    ev.push({t:'cut',d:addBiz(ex,-1)},{t:'ex',d:ex},{t:'pay',d:addBiz(ex,5)});
+  }
+  return ev;
+}
+function renderCalendar(){
+  const el=$('cmp-cal'); if(!el)return;
+  const now=new Date(); now.setHours(0,0,0,0);
+  const todayKey=fmtD(now);
+  const fs=state.funds.map((f,i)=>({f:f,n:shortOf(f),col:'var(--c'+((i%8)+1)+')',ini:(f.refKey&&INIT[f.refKey])||shortOf(f).slice(0,1),info:calInfo(f)}));
+  const withInfo=fs.filter(o=>o.info), without=fs.filter(o=>!o.info);
+  // 次の予定
+  let h='<h3 style="margin:0 0 4px">次の予定</h3>';
+  withInfo.forEach(o=>{
+    const ev=fundEvents(o.info,now.getFullYear(),now.getMonth()-1,16);
+    const i=ev.findIndex(e=>e.t==='ex'&&e.d>=now);
+    if(i<0){h+='<div class="nx"><strong>'+esc(o.n)+'</strong><small>予定を計算できませんでした</small></div>';return}
+    const ex=ev[i].d, cut=ev[i-1].d, pay=ev[i+1].d, days=Math.round((ex-now)/864e5);
+    h+='<div class="nx"><strong><span style="color:'+o.col+'">●</span> '+esc(o.n)+'</strong>'+
+      '<span>次の'+tT(o,'ex').n+' <b>'+wdf(ex)+'</b>'+(days===0?'(今日)':'(あと'+days+'日)')+'</span>'+
+      '<small>'+tT(o,'cut').n+' '+wdf(cut)+(cut<now?'(過ぎています)':'')+'　/　'+tT(o,'pay').n+' '+wdf(pay)+'</small></div>';
+  });
+  without.filter(o=>!o.f.sample).forEach(o=>{h+='<div class="nx"><strong>'+esc(o.n)+'</strong><small>決算日が未入力です。<button type="button" class="ghost" data-openedit="'+esc(o.f.id)+'">決算日を入力する</button></small></div>'});
+  if(!fs.length)h+='<p class="empty">ファンドがありません。</p>';
+  // 月カレンダー
+  const y=calM.y,m=calM.m, first=new Date(y,m,1), dim=new Date(y,m+1,0).getDate();
+  const lead=first.getDay(), cells=Math.ceil((lead+dim)/7)*7;
+  const byDay={}, monthEv=[];
+  withInfo.forEach(o=>{fundEvents(o.info,y,m-1,3).forEach(e=>{
+    const k=fmtD(e.d); (byDay[k]=byDay[k]||[]).push({o:o,t:e.t});
+    if(e.d.getFullYear()===y&&e.d.getMonth()===m)monthEv.push({o:o,t:e.t,d:e.d});
+  })});
+  const ord={cut:0,ex:1,pay:2};
+  monthEv.sort((a,b)=>a.d-b.d||ord[a.t]-ord[b.t]);
+  h+='<div class="calnav"><h3 id="cal-title" aria-live="polite">'+y+'年'+(m+1)+'月</h3><div class="rowbtn"><button type="button" class="ghost" data-cal="-1" aria-label="前の月">‹ 前の月</button><button type="button" class="ghost" data-cal="today">今月</button><button type="button" class="ghost" data-cal="1" aria-label="次の月">次の月 ›</button></div></div>';
+  let g='<div class="calgrid" role="group" aria-label="'+y+'年'+(m+1)+'月のカレンダー">'+[...WD].map(w=>'<div class="dow">'+w+'</div>').join('');
+  for(let i=0;i<cells;i++){
+    const d=new Date(y,m,1-lead+i), k=fmtD(d), inM=d.getMonth()===m, evs=byDay[k]||[];
+    const cl=[inM?'':'oth',isBiz(d)?'':'off',k===todayKey?'today':''].filter(Boolean).join(' ');
+    const al=evs.length?(d.getMonth()+1)+'月'+d.getDate()+'日 '+evs.map(e=>e.o.n+' '+tT(e.o,e.t).n).join('、'):'';
+    g+='<div class="'+cl+'"'+(al?' aria-label="'+esc(al)+'" role="text"':'')+'><span class="dn">'+d.getDate()+'</span>'+(evs.length?'<div class="mks">'+evs.map(e=>'<span class="mk"><i style="color:'+e.o.col+'" aria-hidden="true">'+CAL_T[e.t].ic+'</i>'+esc(e.o.n)+'</span>').join('')+'</div>':'')+'</div>';
+  }
+  g+='</div>';
+  h+=g;
+  h+='<div class="calkey"><span><i>◆</i>購入締切(目安)・権利付最終売買日</span><span><i>●</i>決算日・分配落ち日</span><span><i>▲</i>支払開始(目安)</span><span>グレーの日は休業日</span></div>';
+  h+='<div class="calkey">'+withInfo.map(o=>'<span><i style="color:'+o.col+'">■</i>'+esc(o.n)+'</span>').join('')+'</div>';
+  // 月の一覧
+  h+='<div class="evl"><h3 style="margin:0 0 2px">'+(m+1)+'月の予定</h3>';
+  if(!monthEv.length)h+='<p class="empty">この月の予定はありません。</p>';
+  monthEv.forEach(e=>{
+    const T=tT(e.o,e.t);
+    h+='<div class="evr'+(e.d<now?' past':'')+'"><span>'+wdf(e.d)+(fmtD(e.d)===todayKey?' 今日':'')+'</span><span style="color:'+e.o.col+'" aria-hidden="true">'+T.ic+'</span><span><strong>'+esc(e.o.n)+'</strong>　'+T.n+'<small>'+T.d+'</small></span></div>';
+  });
+  h+='</div>';
+  el.innerHTML=h;
+}
+$('cmp-cal').addEventListener('click',e=>{
+  const o=e.target.closest('[data-openedit]');
+  if(o){state.view='fund';state.active=o.dataset.openedit;armDelete=false;editProf=true;save();renderAll();window.scrollTo(0,0);return}
+  const b=e.target.closest('[data-cal]'); if(!b)return;
+  const v=b.dataset.cal;
+  if(v==='today'){const d=new Date();calM={y:d.getFullYear(),m:d.getMonth()}}
+  else{const d=new Date(calM.y,calM.m+(+v),1);calM={y:d.getFullYear(),m:d.getMonth()}}
+  renderCalendar();
+  const nb=$('cmp-cal').querySelector('[data-cal="'+v+'"]'); if(nb)nb.focus();
+});
+
+/* ---------- 買い場チェック ---------- */
+const MARKET={d:'2026-11-20',fx:'ドル円は159円台後半(160円付近は日本の介入警戒が強い水準)',rate:'FRBは12月8〜9日のFOMCで0.25%の利上げが見込まれています(織り込み約96%)',ai:'AI関連株の調整で、米株の値動きが荒くなっています'};
+function buyFactors(f){
+  const q=f.refKey&&REF[f.refKey], p=effProfile(f), m=metrics(f), out=[];
+  if(q&&q.px)out.push({n:'直近の値動き',s:q.px.v<=-5?1:0,t:q.px.t+(q.px.v<=-5?'。押し目の可能性はありますが、下げ止まりかどうかは分かりません':'')});
+  else out.push({n:'直近の値動き',s:0,nd:1,t:'まだ取得できていません'});
+  out.push({n:'金利・相場',s:-1,t:MARKET.rate+'。'+MARKET.ai});
+  const unh=/なし/.test(String(p.hedge||''))&&!/あり/.test(String(p.hedge||''));
+  out.push({n:'為替',s:unh?-1:0,t:unh?MARKET.fx+'。為替ヘッジなしなので、円高に戻ると基準価額が下がります':(p.hedge?'ヘッジの有無はコースで変わります。'+MARKET.fx:'ヘッジの有無を確認できていません。'+MARKET.fx)});
+  const gs=m.d.gn+m.d.ts;
+  if(m.d.rows.length>=6&&gs>0){const sh=m.d.ts/gs*100;out.push({n:'分配金の質',s:sh<10?1:(sh<40?0:-1),t:'受け取った分配金のうち特別分配金が'+sh.toFixed(0)+'%(あなたの記録)'+(sh>=40?'。元本の取り崩しが多めです':'')})}
+  else out.push({n:'分配金の質',s:0,nd:1,t:m.d.rows.length?'記録が'+m.d.rows.length+'件と少ないため、まだ判断できません':'分配金の記録がまだありません'});
+  const eff=q&&q.hold&&q.hold.length?q.hold:null;
+  if(eff){const t=eff.filter(x=>SEC[x.k]==='情報技術').reduce((a,x)=>a+x.p,0), tot=eff.reduce((a,x)=>a+x.p,0), sh=tot>0?t/tot*100:0;
+    out.push({n:'業種の偏り',s:sh>=45?-1:(sh<=25?1:0),t:'上位10銘柄のうち情報技術が'+sh.toFixed(0)+'%'+(sh>=45?'。AI・半導体の値動きにまとめて左右されます':'')})}
+  else out.push({n:'業種の偏り',s:0,nd:1,t:'組入銘柄のデータがありません'});
+  return out;
+}
+function renderBuy(){
+  const el=$('cmp-buy'); if(!el)return;
+  const IC={'1':['○','前向き'],'0':['△','どちらとも'],'-1':['×','慎重']};
+  const VD=(sc,nd)=>nd>=2?['■','材料が足りません']:(sc>=1?['▲','前向き寄り']:(sc>=-1?['●','中立(分割で)']:['▼','慎重(見送りか少額)']));
+  let h='<p class="bzm">材料を5つに分けて、○(前向き)・△(どちらとも)・×(慎重)を数えた見立てです。株価や為替の先行きを当てるものではありません。市場の材料は'+esc(longDate(MARKET.d))+'時点です。</p>';
+  state.funds.filter(f=>!f.sample).forEach(f=>{
+    const fa=buyFactors(f), sc=fa.reduce((a,x)=>a+x.s,0), v=VD(sc,fa.filter(x=>x.nd).length);
+    h+='<div class="bzc"><div class="bzh"><strong>'+esc(shortOf(f))+'</strong><span class="bzv">'+v[0]+' '+v[1]+'</span><small>'+(v[0]==='■'?'データ不足のため参考: ':'')+'○'+fa.filter(x=>x.s>0).length+' △'+fa.filter(x=>x.s===0).length+' ×'+fa.filter(x=>x.s<0).length+'</small></div>'+
+      fa.map(x=>'<div class="bzr"><span>'+x.n+'</span><b aria-label="'+IC[x.s][1]+'">'+IC[x.s][0]+'</b><span>'+esc(x.t)+'</span></div>').join('')+'</div>';
+  });
+  h+='<div class="bzf"><label>追加で買う金額(円)<input id="bz-amt" type="number" inputmode="numeric" min="0" step="1000" placeholder="例 100000"></label><label>何回に分ける<input id="bz-n" type="number" inputmode="numeric" min="1" max="24" value="4"></label></div><div id="bz-out" class="bzm"></div>';
+  el.innerHTML=h; buyPlan();
+}
+function buyPlan(){
+  const o=$('bz-out'); if(!o)return;
+  const a=num($('bz-amt').value), n=Math.max(1,Math.min(24,Math.round(num($('bz-n').value)||1)));
+  if(!(a>0)){o.textContent='金額を入れると、毎月1回ずつ買う場合の1回あたりの金額と日付を出します。';return}
+  const per=Math.round(a/n), d0=new Date(), ds=[];
+  for(let i=0;i<n&&i<24;i++){const d=new Date(d0.getFullYear(),d0.getMonth()+i,Math.min(d0.getDate(),28));ds.push((d.getMonth()+1)+'/'+d.getDate())}
+  o.textContent='毎月1回、1回あたり'+per.toLocaleString('ja-JP')+'円を'+n+'回。買う日の例: '+ds.join('、')+'。';
+}
+document.addEventListener('input',e=>{if(e.target&&(e.target.id==='bz-amt'||e.target.id==='bz-n'))buyPlan()});
+function renderCompare(){
+  $('c3-h').textContent=LBLR()+(PLN()?'(評価額 + 普通分配金 − 元本)÷ 元本':'(評価額 + 分配金 − 元本)÷ 元本');
+  $('plmode-c').innerHTML=plToggle();
+  const ms=state.funds.map(f=>({f:f,m:metrics(f),n:shortOf(f)}));
+  const rt=(v,P)=>P>0?(v/P*100).toFixed(1)+'%':'—';
+  const swN='<i class="sw" style="background:var(--s1)"></i>', swS='<i class="sw" style="background:var(--s2)"></i>';
+  const heads=[['ファンド',0],['元本',1],['評価額',1],['評価損益',1],['分配金の累計',1],[swN+'普通分配金の回収率',1],[swS+'特別分配金の回収率',1],['回収率の合計',1],[LBL(),1],[LBLR(),1],['信託報酬',1],['純資産総額',1]];
+  let t='<table class="cmp cmp-wide"><thead><tr>'+heads.map(h=>'<th'+(h[1]?' class="r"':'')+'>'+h[0]+'</th>').join('')+'</tr></thead><tbody>';
+  let cards='';
+  let sP=0,sV=0,sD=0,sPLV=0,sPLP=0,sPLT=0,cntV=0,rP=0,rN=0,rS=0;
+  const rate2=(v,P)=>P>0?'<div>'+rt(v,P)+'</div><small class="u">'+yen(v)+'</small>':'—';
+  ms.forEach(o=>{
+    const f=o.f,m=o.m,d=m.d,P=m.principal;
+    sP+=P; sD+=d.total;
+    if(P>0){rP+=P;rN+=d.tn;rS+=d.ts}
+    if(m.value!==null){sV+=m.value;sPLV+=m.totalPL;sPLP+=P;sPLT+=m.unreal;cntV++}
+    const fee=effProfile(f).fee, feeT=fee?esc(fee)+'%':'—';
+    const aum=String(effProfile(f).aum||''), am=aum.match(/^(.*?)\((.*)\)$/), aumT=aum?(am?am[1]:esc(aum)):'—', aumC=aum?(am?esc(am[1])+'<small>'+esc(am[2])+'</small>':esc(aum)):'—';
+    const aumH=aum?(am?'<div>'+esc(am[1])+'</div><small class="u">'+esc(am[2])+'</small>':esc(aum)):'—';
+    const unreal=m.unreal!==null?ico(m.unreal)+' '+sg(m.unreal):'—', total=m.totalPL!==null?ico(m.totalPL)+' '+sg(m.totalPL):'—';
+    const pct=m.totalPct!==null?sp(m.totalPct):'—';
+    t+='<tr><td class="name"><button type="button" data-open="'+esc(f.id)+'" title="'+esc(f.name||'')+'">'+esc(o.n)+'</button></td>'+
+      '<td class="r">'+yen(P)+'</td><td class="r">'+(m.value!==null?yen(m.value):'—')+'</td>'+
+      '<td class="r '+(m.unreal!==null?cls(m.unreal):'')+'">'+unreal+'</td>'+
+      '<td class="r">'+yen(d.total)+'</td>'+
+      '<td class="r">'+rate2(d.tn,P)+'</td><td class="r">'+rate2(d.ts,P)+'</td><td class="r">'+(P>0?'<strong>'+rt(d.total,P)+'</strong>':'—')+'</td>'+
+      '<td class="r '+(m.totalPL!==null?cls(m.totalPL):'')+'">'+total+'</td>'+
+      '<td class="r '+(m.totalPct!==null?cls(m.totalPct):'')+'">'+pct+'</td><td class="r">'+feeT+'</td><td class="r">'+aumH+'</td></tr>';
+    const it=(k,v,c)=>'<div><dt>'+k+'</dt><dd'+(c?' class="'+c+'"':'')+'>'+v+'</dd></div>';
+    const rr=(v)=>P>0?rt(v,P)+'<small>'+yen(v)+'</small>':'—';
+    cards+='<div class="cc"><h3><button type="button" data-open="'+esc(f.id)+'">'+esc(f.name||o.n)+'</button></h3><dl class="ccg">'+
+      it('元本',yen(P))+it('評価額',m.value!==null?yen(m.value):'—')+
+      it('評価損益',unreal,m.unreal!==null?cls(m.unreal):'')+it('分配金の累計',yen(d.total))+
+      it(swN+'普通分配金の回収率',rr(d.tn))+it(swS+'特別分配金の回収率',rr(d.ts))+
+      it('回収率の合計',P>0?rt(d.total,P):'—')+it('信託報酬',feeT)+it('純資産総額',aumC)+
+      it(LBL(),total,m.totalPL!==null?cls(m.totalPL):'')+it(LBLR(),pct,m.totalPct!==null?cls(m.totalPct):'')+
+      '</dl></div>';
+  });
+  const allPct=sPLP>0?sPLV/sPLP*100:null;
+  const rate3=(v)=>rP>0?'<div>'+(v/rP*100).toFixed(1)+'%</div><small class="u">'+yen(v)+'</small>':'—';
+  t+='</tbody><tfoot><tr><td>合計</td><td class="r">'+yen(sP)+'</td><td class="r">'+(cntV?yen(sV):'—')+'</td>'+
+    '<td class="r '+(cntV?cls(sPLT):'')+'">'+(cntV?ico(sPLT)+' '+sg(sPLT):'—')+'</td>'+
+    '<td class="r">'+yen(sD)+'</td><td class="r">'+rate3(rN)+'</td><td class="r">'+rate3(rS)+'</td><td class="r">'+(rP>0?((rN+rS)/rP*100).toFixed(1)+'%':'—')+'</td>'+
+    '<td class="r '+(cntV?cls(sPLV):'')+'">'+(cntV?ico(sPLV)+' '+sg(sPLV):'—')+'</td>'+
+    '<td class="r '+(allPct!==null?cls(allPct):'')+'">'+(allPct!==null?sp(allPct):'—')+'</td><td class="r"></td><td class="r"></td></tr></tfoot></table>';
+  const itT=(k,v,c)=>'<div><dt>'+k+'</dt><dd'+(c?' class="'+c+'"':'')+'>'+v+'</dd></div>';
+  cards+='<div class="cc"><h3>合計</h3><dl class="ccg">'+itT('元本',yen(sP))+itT('評価額',cntV?yen(sV):'—')+
+    itT('評価損益',cntV?ico(sPLT)+' '+sg(sPLT):'—',cntV?cls(sPLT):'')+itT('分配金の累計',yen(sD))+
+    itT(swN+'普通分配金の回収率',rP>0?(rN/rP*100).toFixed(1)+'%<small>'+yen(rN)+'</small>':'—')+itT(swS+'特別分配金の回収率',rP>0?(rS/rP*100).toFixed(1)+'%<small>'+yen(rS)+'</small>':'—')+
+    itT('回収率の合計',rP>0?((rN+rS)/rP*100).toFixed(1)+'%':'—')+itT(LBL(),cntV?ico(sPLV)+' '+sg(sPLV):'—',cntV?cls(sPLV):'')+
+    '</dl></div>';
+  $('cmp-table').innerHTML=t+'<div class="cmpcards">'+cards+'</div>'+
+    '<p class="note foot" style="margin-top:12px">回収率は、元本を入力したファンドだけで計算しています。評価額を入力したファンド('+cntV+'/'+ms.length+')だけが、評価損益と'+LBL()+'の合計に入ります。</p>';
+
+  // 元本の回収率(普通・特別を別々に)
+  const rated=ms.filter(o=>o.m.rate!==null);
+  const maxRate=Math.max(1,...ms.map(o=>o.m.rate||0));
+  const S=maxRate*1.08;
+  let r='<div class="cax"><span></span><div class="ax"><span style="left:0%">0</span><span style="left:'+(100/S)+'%">元本100%</span></div><span></span></div>';
+  ms.forEach(o=>{
+    const m=o.m, d=m.d;
+    if(m.rate===null){r+='<div class="cr"><span class="nm">'+esc(o.n)+'</span><span class="hint">元本を入力すると表示されます</span><span></span></div>';return}
+    const wn=d.tn/m.principal/S*100, ws=d.ts/m.principal/S*100;
+    r+='<div class="cr"><span class="nm">'+esc(o.n)+'</span>'+
+      '<div class="ctrack" role="img" aria-label="'+esc(o.n)+' 回収率 '+(m.rate*100).toFixed(1)+'%、普通分配金 '+rt(d.tn,m.principal)+'、特別分配金 '+rt(d.ts,m.principal)+'">'+
+      '<div class="cseg n" style="left:0;width:'+wn+'%"></div><div class="cseg s" style="left:'+wn+'%;width:'+ws+'%"></div>'+
+      '<i class="cline" style="left:'+(100/S)+'%"></i></div>'+
+      '<span class="cv">'+(m.rate*100).toFixed(1)+'%<small>普通 '+rt(d.tn,m.principal)+'</small><small>特別 '+rt(d.ts,m.principal)+'</small></span></div>';
+  });
+  $('cmp-rec').innerHTML=r;
+
+  // トータル損益率
+  const pcts=ms.filter(o=>o.m.totalPct!==null).map(o=>o.m.totalPct);
+  const maxPos=Math.max(0,...pcts), maxNeg=Math.max(0,...pcts.map(v=>-v));
+  const range=(maxPos+maxNeg)||1, zf=maxNeg/range*100;
+  let p='';
+  if(!pcts.length)p='<p class="empty">評価額と元本を入力したファンドがあると、ここに比較が表示されます。</p>';
+  ms.forEach(o=>{
+    const v=o.m.totalPct;
+    if(v===null){p+='<div class="cr"><span class="nm">'+esc(o.n)+'</span><span class="hint">評価額が未入力です</span><span></span></div>';return}
+    const w=Math.abs(v)/range*100;
+    const seg=v>=0?'<div class="cseg p" style="left:'+zf+'%;width:'+w+'%"></div>':'<div class="cseg m" style="left:'+(zf-w)+'%;width:'+w+'%"></div>';
+    p+='<div class="cr"><span class="nm">'+esc(o.n)+'</span>'+
+      '<div class="ctrack" role="img" aria-label="'+esc(o.n)+' '+LBLR()+' '+sp(v)+'">'+seg+'<i class="zline" style="left:'+zf+'%"></i></div>'+
+      '<span class="cv '+cls(v)+'">'+ico(v)+' '+sp(v)+'</span></div>';
+  });
+  $('cmp-pl').innerHTML=p;
+
+  renderBuy();
+  renderCalendar();
+  renderTopHoldings();
+  renderRefStatus();
+  renderHoldingAnalysis();
+}
+/* ---------- render ---------- */
+function renderFundView(){
+  renderSettings();renderPL();renderSummary();renderChart();renderProfile();buildTable();
+}
+function renderAll(){
+  renderTabs();
+  const cmp=state.view==='compare';
+  document.querySelector('.wrap').classList.toggle('wide',cmp);
+  $('v-fund').hidden=cmp;$('v-compare').hidden=!cmp;
+  if(cmp)renderCompare();else renderFundView();
+}
+function refreshNumbers(){renderPL();renderSummary();renderChart()}
+
+/* ---------- events ---------- */
+$('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  if(b.dataset.fund){state.view='fund';state.active=b.dataset.fund;armDelete=false;editProf=false;save();renderAll();return}
+  if(b.dataset.view==='compare'){state.view='compare';save();renderAll();return}
+  if(b.id==='add-fund'){
+    const f=newFund({name:'新しいファンド'});
+    state.funds.push(f);state.active=f.id;state.view='fund';armDelete=false;editProf=false;save();renderAll();
+    $('fund').focus();$('fund').select();
+  }
+});
+$('cmp-table').addEventListener('click',e=>{
+  const id=e.target.dataset&&e.target.dataset.open; if(!id)return;
+  state.view='fund';state.active=id;armDelete=false;editProf=false;save();renderAll();window.scrollTo(0,0);
+});
+$('fund').addEventListener('input',e=>{cur().name=e.target.value;save();renderTabs();$('sum-h').textContent=(cur().name?cur().name+' の':'')+'元本の回収状況';$('prof-h').textContent=(cur().name?cur().name+' の':'')+'投資内容'});
+$('principal').addEventListener('input',e=>{cur().principal=num(e.target.value);save();refreshNumbers();renderPlCalc()});
+$('value').addEventListener('input',e=>{cur().value=e.target.value===''?'':num(e.target.value);save();refreshNumbers();renderPlCalc()});
+$('plin').addEventListener('input',e=>{cur().pl=e.target.value===''?'':Number(e.target.value);save();renderPlCalc()});
+$('calc-principal').addEventListener('click',()=>{
+  const f=cur(), c=plPrincipal(f);
+  if(c.principal===null||c.principal<0)return;
+  f.principal=c.principal;save();$('principal').value=f.principal?f.principal:'';refreshNumbers();renderPlCalc();
+});
+$('valueDate').addEventListener('input',e=>{cur().valueDate=e.target.value;save();renderPL()});
+$('net').addEventListener('change',e=>{cur().net=e.target.checked;save();refreshNumbers()});
+$('m-cum').addEventListener('click',()=>{cur().mode='cum';save();renderSettings();renderChart()});
+$('m-each').addEventListener('click',()=>{cur().mode='each';save();renderSettings();renderChart()});
+$('del-area').addEventListener('click',e=>{
+  const id=e.target.id; if(!id)return;
+  if(id==='del-arm'){armDelete=true;renderDelArea();return}
+  if(id==='del-no'){armDelete=false;renderDelArea();return}
+  if(id==='del-yes'){
+    state.funds=state.funds.filter(f=>f.id!==state.active);
+    if(!state.funds.length)state.funds=[newFund({name:'新しいファンド'})];
+    state.active=state.funds[0].id;armDelete=false;editProf=false;save();renderAll();
+  }
+});
+$('clear-sample').addEventListener('click',()=>{
+  state.funds=state.funds.filter(f=>!f.sample);
+  if(!state.funds.length)state.funds=[newFund({name:'新しいファンド'})];
+  state.active=state.funds[0].id;state.view='fund';armDelete=false;editProf=false;save();renderAll();$('principal').focus();
+});
+$('prof-toggle').addEventListener('click',()=>{editProf=!editProf;renderProfile()});
+$('profile').addEventListener('input',e=>{
+  const t=e.target, p=cur().profile;
+  if(t.dataset.pf){p[t.dataset.pf]=t.value;save();return}
+  if(t.dataset.list){
+    const it=p[t.dataset.list].find(x=>x.id===t.dataset.id); if(!it)return;
+    if(t.dataset.f==='l')it.l=t.value;else it.p=t.value===''?'':Number(t.value);
+    save();
+  }
+});
+$('profile').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  const p=cur().profile;
+  if(b.dataset.ladd){p[b.dataset.ladd].push({id:uid(),l:'',p:''});save();renderProfile();
+    const last=p[b.dataset.ladd][p[b.dataset.ladd].length-1];const inp=$('pe-'+b.dataset.ladd+'-'+last.id+'-l');if(inp)inp.focus();return}
+  if(b.dataset.ldel){p[b.dataset.ldel]=p[b.dataset.ldel].filter(x=>x.id!==b.dataset.id);save();renderProfile()}
+});
+$('rows').addEventListener('input',e=>{
+  const t=e.target, id=t.dataset.id; if(!id)return;
+  const r=cur().rows.find(x=>x.id===id); if(!r)return;
+  r[t.dataset.f]=t.dataset.f==='date'?t.value:num(t.value);
+  const cell=$('t-'+id); if(cell)cell.textContent=yen(num(r.normal)+num(r.special));
+  save();refreshNumbers();
+});
+$('rows').addEventListener('click',e=>{
+  const id=e.target.dataset&&e.target.dataset.del; if(!id)return;
+  const f=cur(); f.rows=f.rows.filter(x=>x.id!==id);
+  save();buildTable();refreshNumbers();
+});
+$('addform').addEventListener('submit',e=>{
+  e.preventDefault();
+  const date=$('add-date').value, n=num($('add-normal').value), s=num($('add-special').value);
+  if(!date){$('msg').textContent='受取日を入力してください。';return}
+  if(n+s<=0){$('msg').textContent='普通分配金か特別分配金のどちらかに、1円以上を入力してください。';return}
+  cur().rows.push({id:uid(),date:date,normal:n,special:s});
+  $('add-normal').value='';$('add-special').value='';
+  $('msg').textContent=longDate(date)+'の分配金を追加しました。';
+  save();buildTable();refreshNumbers();
+});
+let raf=0;
+window.addEventListener('resize',()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{if(state.view==='fund')renderChart()})});
+
+$('add-date').value=todayStr();
+renderAll();
+/* ---------- PCとスマホの同期(クラウドのdb。使えないときはこの端末だけ) ---------- */
+let syncRef=null, syncBusy=false, syncTimer=0, syncDirty=false, syncPending=null, syncLoadT=0;
+function setSt(k,t){
+  const el=document.getElementById('syncst'); if(!el)return;
+  const M={local:'この端末のブラウザだけに保存しています(同期は使えません)。',wait:'クラウドと同期しています…',slow:'クラウドにつながっていません。つながると自動で同期します。',err:'同期できませんでした。この端末には保存されています。',ok:'PC・スマホで同期済み'+(t?'('+t+')':'')};
+  el.textContent=M[k]||'';
+}
+const hhmm=()=>{const d=new Date();return pad2(d.getHours())+':'+pad2(d.getMinutes())};
+function snapState(){return {v:2,at:state.at,funds:JSON.parse(JSON.stringify(state.funds)),refSeeded:state.refSeeded||[]}}
+function pushSoon(){
+  if(!syncRef)return;
+  syncDirty=true; clearTimeout(syncTimer); syncTimer=setTimeout(pushNow,1000);
+}
+async function pushNow(){
+  if(!syncRef||syncBusy||!syncDirty)return;
+  syncBusy=true; syncDirty=false; let ok=true;
+  try{await syncRef.set(snapState()); setSt('ok',hhmm())}
+  catch(e){ok=false;syncDirty=true;setSt('err')}
+  syncBusy=false; clearTimeout(syncTimer);
+  if(syncDirty)syncTimer=setTimeout(pushNow,ok?1000:15000);
+}
+function mergeRows(a,b){
+  const used=[]; 
+  b.forEach(x=>{
+    const i=a.findIndex((y,j)=>used.indexOf(j)<0&&y.date===x.date&&y.normal===x.normal&&y.special===x.special);
+    if(i>=0)used.push(i); else{a.push({id:uid(),date:x.date,normal:x.normal,special:x.special});used.push(a.length-1)}
+  });
+}
+function mergeInto(remote){
+  const funds=(remote.funds||[]).map(normFund), seeded=(remote.refSeeded||[]).slice();
+  state.funds.forEach(lf=>{
+    let rf=null;
+    if(lf.sample)rf=funds.find(x=>x.sample);
+    else if(lf.refKey)rf=funds.find(x=>x.refKey===lf.refKey);
+    else rf=funds.find(x=>x.id===lf.id);
+    if(!rf){funds.push(lf);return}
+    mergeRows(rf.rows,lf.rows);
+    ['principal','value','pl'].forEach(k=>{if(!rf[k]&&lf[k])rf[k]=lf[k]});
+    Object.keys(lf.profile||{}).forEach(k=>{const v=lf.profile[k];if(Array.isArray(v)){if(!rf.profile[k].length&&v.length)rf.profile[k]=v}else if(!rf.profile[k]&&v)rf.profile[k]=v});
+  });
+  (state.refSeeded||[]).forEach(t=>{if(seeded.indexOf(t)<0)seeded.push(t)});
+  state.funds=funds; state.refSeeded=seeded;
+}
+function applyRemote(d){
+  state.funds=(d.funds||[]).map(normFund); state.refSeeded=d.refSeeded||[]; state.at=d.at;
+  seedRefs();
+  if(!state.funds.find(f=>f.id===state.active))state.active=state.funds[0].id;
+  saveLocal(); renderAll(); setSt('ok',hhmm());
+}
+function onSyncSnap(snap){
+  clearTimeout(syncLoadT);
+  if(snap.metadata&&snap.metadata.hasPendingWrites)return;
+  const d=snap.exists?snap.data():null;
+  if(snap.metadata&&snap.metadata.fromCache&&!state.synced&&d)return;
+  if(!d||!Array.isArray(d.funds)){state.synced=true;state.at=state.at||Date.now();saveLocal();syncDirty=true;pushNow();return}
+  if(!state.synced){
+    mergeInto(d); seedRefs();
+    if(!state.funds.find(f=>f.id===state.active))state.active=state.funds[0].id;
+    state.synced=true; state.at=Date.now(); saveLocal(); renderAll(); syncDirty=true; pushNow(); return;
+  }
+  if(d.at===state.at){setSt('ok',hhmm());return}
+  if(d.at>state.at){
+    const ae=document.activeElement;
+    if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)){
+      syncPending=d;
+      ae.addEventListener('blur',()=>{if(syncPending&&syncPending.at>state.at){const x=syncPending;syncPending=null;applyRemote(x)}},{once:true});
+    }else applyRemote(d);
+  }else{syncDirty=true;pushNow()}
+}
+(async function(){
+  try{
+    if(!window.claude||!window.claude.use){setSt('local');return}
+    setSt('wait');
+    const db=await window.claude.use('db'), user=await window.claude.use('user');
+    if(!db||!user){setSt('local');return}
+    const id=await user.id();
+    if(!id){setSt('local');return}
+    syncRef=db.doc('data/users/'+id+'/tracker');
+    syncLoadT=setTimeout(()=>setSt('slow'),10000);
+    syncRef.onSnapshot(onSyncSnap,()=>{clearTimeout(syncLoadT);setSt('err')});
+  }catch(e){setSt('local')}
+})();
+
+</script>
+
+</body></html>
