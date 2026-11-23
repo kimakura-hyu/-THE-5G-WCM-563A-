@@ -53,6 +53,8 @@ input[type=text],input[type=number],input[type=date],textarea{
   width:100%;min-width:0;font:inherit;padding:8px 10px;border:1px solid var(--axis);border-radius:6px;
   background:var(--surface);color:var(--ink);
 }
+input[type=date]{-webkit-appearance:none;appearance:none;min-height:2.4em;display:block;box-sizing:border-box;max-width:100%}
+input[type=date]::-webkit-date-and-time-value{text-align:left}
 textarea{min-height:90px;resize:vertical}
 input:focus-visible,button:focus-visible,textarea:focus-visible,.hit:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .check{display:flex;gap:8px;align-items:center;font-size:.85rem;color:var(--ink2);padding-bottom:8px}
@@ -172,6 +174,8 @@ input:focus-visible,button:focus-visible,textarea:focus-visible,.hit:focus-visib
 
 /* ledger */
 .addrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
+.addrow>*{min-width:0}
+.addrow input{max-width:100%;box-sizing:border-box}
 .msg{min-height:1.4em;margin:8px 0 12px;font-size:.82rem;color:var(--ink2)}
 .tablewrap{overflow-x:auto}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
@@ -274,14 +278,30 @@ a.ghost{padding:5px 12px}
   .stbl .sc{white-space:normal}
   .ledger{min-width:0}
   .ledger thead{display:none}
-  .ledger tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px 0;border-bottom:1px solid var(--grid)}
-  .ledger td{display:block;padding:0;border:0}
+  .ledger tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:12px 0;border-bottom:1px solid var(--grid)}
+  .ledger td{display:block;padding:0;border:0;min-width:0}
+  .ledger td input{max-width:100%;box-sizing:border-box}
   .ledger td::before{content:attr(data-l);display:block;font-size:.72rem;color:var(--ink2);margin-bottom:2px}
   .ledger td.r{text-align:left}
   .ledger td:nth-child(1){grid-column:1/-1}
   .ledger td.tot{align-self:end;font-weight:700}
   .ledger td.del{align-self:end;text-align:right}
   .ledger td.del::before{display:none}
+}
+@media (max-width:760px){
+  .ledgerwrap,.tablewrap:has(.ledger){overflow-x:hidden}
+  .ledger{min-width:0;width:100%}
+  .ledger thead{display:none}
+  .ledger tbody,.ledger tr{display:grid}
+  .ledger tr{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;padding:12px 0;border-bottom:1px solid var(--grid)}
+  .ledger td{display:block;padding:0;border:0;min-width:0}
+  .ledger td::before{content:attr(data-l);display:block;font-size:.72rem;color:var(--ink2);margin-bottom:2px}
+  .ledger td.r{text-align:left}
+  .ledger td:nth-child(1){grid-column:1/-1}
+  .ledger td.tot{align-self:end;font-weight:700}
+  .ledger td.del{align-self:end;text-align:right}
+  .ledger td.del::before{display:none}
+  .ledger td input{max-width:100%;box-sizing:border-box}
 }
 .wrap.wide{max-width:1240px}
 .cmp{font-size:.8rem}
@@ -315,6 +335,18 @@ a.btn2{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px
 .bk summary{cursor:pointer;font-weight:700}
 .bk textarea{font:12px ui-monospace,Menlo,Consolas,monospace;background:var(--surface);color:var(--ink);border:1px solid var(--grid);border-radius:6px;padding:6px;box-sizing:border-box}
 .bkfile{cursor:pointer;display:inline-block}
+.disc{margin:8px 0 24px;padding:0 4px;font-size:.78rem;color:var(--ink2)}
+.disc ul{margin:0;padding-left:1.2em}
+.disc li{margin:2px 0}
+.goalrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.goalrow>*{min-width:0}.goalrow input{max-width:100%;box-sizing:border-box}
+.goalblk{margin-top:16px}.goalblk h3{margin:0 0 4px}
+.gbig{margin:0;font-size:1.15rem;font-weight:700}.gbig span{font-size:.85rem;font-weight:500;color:var(--ink2)}
+.gbar{height:14px;margin:8px 0;border-radius:4px;background:var(--track);overflow:hidden}
+.gbar i{display:block;height:100%;background:var(--s1);border-radius:0 4px 4px 0}
+.gtxt{margin:0;font-size:.88rem;color:var(--ink2)}
+.gapchips{display:flex;flex-wrap:wrap;gap:6px}.gapchip{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 10px;border:1px solid var(--grid);border-radius:999px;background:var(--bg)}.gapchip button{padding:3px 10px;font-size:.78rem}
+.gapnote{margin:8px 0;padding:8px 12px;border-left:4px solid var(--s2);border-radius:6px;background:var(--surface);font-size:.86rem;color:var(--ink)}
 /* calendar */
 .calnav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 10px}
 .calnav h3{margin:0;font-size:1.02rem}
@@ -407,6 +439,23 @@ a.btn2{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px
       <div id="summary"></div>
     </section>
 
+    <section class="card" aria-labelledby="goal-h">
+      <h2 id="goal-h">目標の設定</h2>
+      <p class="note foot" style="margin:0 0 10px">決めた目標に対して、いまどのくらい進んでいるかを表示します。どちらか一方だけでもかまいません。</p>
+      <div class="goalrow">
+        <div>
+          <label class="lbl" for="goal-rec">元本の回収率の目標(%)</label>
+          <input type="number" id="goal-rec" inputmode="decimal" min="0" step="1" placeholder="例: 100">
+        </div>
+        <div>
+          <label class="lbl" for="goal-mon">1か月に受け取りたい分配金(円)</label>
+          <input type="number" id="goal-mon" inputmode="numeric" min="0" step="1" placeholder="例: 3000">
+        </div>
+      </div>
+      <div id="goal-pl" style="margin-top:14px"></div>
+      <div id="goal-out"></div>
+    </section>
+
     <section class="card" aria-labelledby="chart-h">
       <div class="chart-head">
         <h2 id="chart-h">累計の分配金と元本回収の進み具合</h2>
@@ -448,6 +497,14 @@ a.btn2{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px
         <div><button type="submit" class="btn" id="add-btn">追加する</button></div>
       </form>
       <p class="msg" id="msg" role="status" aria-live="polite"></p>
+      <div class="gapnote" id="gapnote" role="status" hidden></div>
+      <details class="bk" id="bulk">
+        <summary>まとめて貼り付けて入力</summary>
+        <p class="prnote">1行に1回ぶん、「受取日 普通分配金 特別分配金」の順に書きます。区切りは、スペース、タブ、カンマのどれでもかまいません。表計算の列をそのまま貼れます。特別分配金は、なければ省けます(0円になります)。受取日は、「2026/08/18」「2026-08-18」「2026年8月18日」の形に対応しています。</p>
+        <textarea id="bulk-txt" rows="5" spellcheck="false" placeholder="2026/08/18 198 0&#10;2026/09/18 280 0&#10;2026/10/19 366 0" style="width:100%"></textarea>
+        <div class="rowbtn"><button type="button" class="ghost" id="bulk-add">貼り付けた内容を追加</button></div>
+        <p class="prnote" id="bulk-msg" role="status" aria-live="polite"></p>
+      </details>
       <div class="tablewrap">
         <table class="ledger">
           <thead>
@@ -466,7 +523,7 @@ a.btn2{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px
       <div class="tablewrap" id="cmp-table"></div>
     </section>
     <section class="card" aria-labelledby="c2-h">
-      <h2 id="c2-h">元本の回収率(普通分配金と特別分配金を別々に)</h2>
+      <h2 id="c2-h">元本の回収率</h2>
       <div class="legend">
         <span><i class="sw" style="background:var(--s1)"></i>普通分配金</span>
         <span><i class="sw" style="background:var(--s2)"></i>特別分配金</span>
@@ -531,6 +588,13 @@ a.btn2{font:inherit;font-size:.85rem;font-weight:500;padding:7px 14px;border:1px
   <div class="rowbtn"><button type="button" class="ghost" id="bk-copy">文字列をコピー</button><button type="button" class="ghost" id="bk-paste">貼り付けた内容で復元</button></div>
   <p class="prnote" id="bk-msg" role="status" aria-live="polite"></p>
 </details>
+<footer class="disc" aria-label="ご利用にあたって">
+  <ul>
+    <li>投資判断は、ご自身の責任で行ってください。このページは、特定のファンドの売買をすすめるものではありません。</li>
+    <li>計算結果は目安です。税金や手数料は、実際と異なることがあります。</li>
+    <li><span id="disc-store">入力した記録は、このブラウザの中だけに保存されます。ブラウザのデータを消すと、記録も消えます。</span></li>
+  </ul>
+</footer>
 </div>
 
 <script>
@@ -700,7 +764,7 @@ function effProfile(f){
 }
 const shortOf=f=>{const r=f.refKey&&REF[f.refKey];if(r&&r.short)return r.short;const n=f.name||'名称未設定';return n.length>12?n.split(/[ 　]/)[0]:n};
 const refFundList=()=>state.funds.filter(f=>f.refKey&&REF[f.refKey]).map(f=>({f:f,r:REF[f.refKey],n:shortOf(f)}));
-const ARTIFACT_URL='https://claude.ai/artifact/WqK1ZZX1gjBhswgdXimTbk';
+const ARTIFACT_URL='';
 function reqText(){
   const names=refFundList().map(q=>'・'+q.r.name).join('\n');
   return '分配金利回り計算('+ARTIFACT_URL+')の組入銘柄を更新して。\n対象:\n'+names+'\n最新の月次レポートから上位10銘柄・基準日・信託報酬・決算日を調べて、同じURLのページに反映してください。';
@@ -1350,8 +1414,66 @@ function renderCompare(){
   renderHoldingAnalysis();
 }
 /* ---------- render ---------- */
+function renderGap(){
+  const el=$('gapnote'); if(!el)return;
+  const f=cur(), freq=String(effProfile(f).freq||'');
+  const nd=Array.isArray(f.noDist)?f.noDist:[];
+  const ms=new Set(f.rows.map(x=>(x.date||'').slice(0,7)).filter(x=>/^\d{4}-\d{2}$/.test(x)));
+  const jp=k=>k.slice(0,4)+'年'+Number(k.slice(5))+'月';
+  if(!/毎月/.test(freq)||(ms.size<2&&!nd.length)){el.hidden=true;el.innerHTML='';return}
+  const arr=Array.from(ms).sort(), now=new Date(), pv=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const pk=pv.getFullYear()+'-'+String(pv.getMonth()+1).padStart(2,'0');
+  let miss=[];
+  if(arr.length>=2){
+    const end=arr[arr.length-1]>pk?arr[arr.length-1]:pk;
+    let y=+arr[0].slice(0,4), m=+arr[0].slice(5);
+    for(;;){const k=y+'-'+String(m).padStart(2,'0'); if(k>end)break; if(!ms.has(k)&&nd.indexOf(k)<0)miss.push(k); m++; if(m>12){m=1;y++}}
+  }
+  let h='';
+  if(miss.length){
+    h+='<p style="margin:0 0 6px"><strong>記録の確認:</strong> 次の月の記録がありません。入力もれがないか、確認してください。分配金が出なかった月は、「分配なしにする」を押すと、この表示が消えます。</p><div class="gapchips">'+
+      miss.slice(0,6).map(k=>'<span class="gapchip">'+jp(k)+' <button type="button" class="ghost" data-nodist="'+k+'">分配なしにする</button></span>').join('')+'</div>'+
+      (miss.length>6?'<p style="margin:6px 0 0">ほか'+(miss.length-6)+'か月あります。</p>':'');
+  }
+  const nds=nd.filter(k=>!ms.has(k)).sort();
+  if(nds.length)h+='<p style="margin:'+(miss.length?'10px':'0')+' 0 4px">分配なしにした月:</p><div class="gapchips">'+nds.map(k=>'<span class="gapchip">'+jp(k)+' <button type="button" class="ghost" data-undonodist="'+k+'">取り消す</button></span>').join('')+'</div>';
+  if(!h){el.hidden=true;el.innerHTML='';return}
+  el.innerHTML=h; el.hidden=false;
+}
+function renderGoalOut(){
+  const f=cur(), m=metrics(f), g=f.goal||{}, out=$('goal-out'), parts=[];
+  const T=num(g.rec), M=num(g.mon);
+  const bar=(pct,label)=>'<div class="gbar" role="img" aria-label="'+esc(label)+'"><i style="width:'+Math.max(0,Math.min(100,pct))+'%"></i></div>';
+  if(T>0){
+    if(!(m.principal>0))parts.push('<p class="empty">回収率の目標を見るには、投資元本を入力してください。</p>');
+    else{
+      const got=PLN()?m.d.tn:m.d.total, rate=got/m.principal*100, goalYen=m.principal*T/100, left=goalYen-got, pct=goalYen>0?got/goalYen*100:0;
+      parts.push('<div class="goalblk"><h3>元本の回収率('+(PLN()?'普通分配金のみ':'普通+特別')+')</h3><p class="gbig">いま '+rate.toFixed(1)+'% <span>/ 目標 '+T+'%</span></p>'+bar(pct,'目標に対する達成度 '+Math.floor(pct)+'%')+
+        '<p class="gtxt">'+(left<=0?'目標を達成しました。(受け取った分配金 '+yen(got)+' / 目標の金額 '+yen(goalYen)+')':'達成度 '+Math.floor(pct)+'%。目標の金額 '+yen(goalYen)+' まで、あと '+yen(left)+' です。(受け取った分配金 '+yen(got)+')')+'</p></div>');
+    }
+  }
+  if(M>0){
+    const by={}; m.d.rows.forEach(x=>{if(!x.date)return;const k=x.date.slice(0,7);by[k]=(by[k]||0)+x.n+(PLN()?0:x.s)});
+    const ks=Object.keys(by).sort();
+    if(!ks.length)parts.push('<p class="empty">毎月の目標を見るには、分配金の記録を入力してください。</p>');
+    else{
+      const last=ks[ks.length-1], lv=by[last], rec3=ks.slice(-3), avg=rec3.reduce((a,k)=>a+by[k],0)/rec3.length, pct=avg/M*100;
+      const lm=last.slice(0,4)+'年'+Number(last.slice(5))+'月';
+      parts.push('<div class="goalblk"><h3>毎月の受取額('+(PLN()?'普通分配金のみ':'普通+特別')+')</h3><p class="gbig">直近'+rec3.length+'か月の平均 '+yen(avg)+' <span>/ 目標 '+yen(M)+'</span></p>'+bar(pct,'目標に対する達成度 '+Math.floor(pct)+'%')+
+        '<p class="gtxt">'+(avg>=M?'目標を達成しています。':'達成度 '+Math.floor(pct)+'%。目標まで、あと '+yen(M-avg)+' です。')+'(直近の記録の月: '+lm+' '+yen(lv)+(f.net?'・税引後':'')+')</p></div>');
+    }
+  }
+  out.innerHTML=parts.join('');
+}
+function renderGoal(){
+  $('goal-pl').innerHTML=plToggle();
+  const g=cur().goal||{};
+  $('goal-rec').value=g.rec===undefined||g.rec===''?'':g.rec;
+  $('goal-mon').value=g.mon===undefined||g.mon===''?'':g.mon;
+  renderGoalOut();
+}
 function renderFundView(){
-  renderSettings();renderPL();renderSummary();renderChart();renderProfile();buildTable();
+  renderSettings();renderPL();renderSummary();renderGoal();renderGap();renderChart();renderProfile();buildTable();
 }
 function renderAll(){
   renderTabs();
@@ -1360,7 +1482,7 @@ function renderAll(){
   $('v-fund').hidden=cmp;$('v-compare').hidden=!cmp;
   if(cmp)renderCompare();else renderFundView();
 }
-function refreshNumbers(){renderPL();renderSummary();renderChart()}
+function refreshNumbers(){renderPL();renderSummary();renderChart();renderGoalOut();renderGap()}
 
 /* ---------- events ---------- */
 $('tabs').addEventListener('click',e=>{
@@ -1444,6 +1566,39 @@ $('addform').addEventListener('submit',e=>{
   $('msg').textContent=longDate(date)+'の分配金を追加しました。';
   save();buildTable();refreshNumbers();
 });
+$('bulk-add').addEventListener('click',()=>{
+  const lines=$('bulk-txt').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if(!lines.length){$('bulk-msg').textContent='欄に、記録を貼り付けてください。';return}
+  const f=cur(); let add=0,dup=0,bad=[];
+  lines.forEach(L=>{
+    const m=L.match(/^(\d{4})\s*[\/\-.年]\s*(\d{1,2})\s*[\/\-.月]\s*(\d{1,2})\s*日?(.*)$/);
+    if(!m){bad.push(L);return}
+    const y=+m[1],mo=+m[2],d=+m[3], dt=new Date(y,mo-1,d);
+    if(dt.getFullYear()!==y||dt.getMonth()!==mo-1||dt.getDate()!==d){bad.push(L);return}
+    const nums=m[4].split(/[\s,、\t]+/).map(t=>t.replace(/[,円¥￥]/g,'')).filter(t=>t!=='').filter(t=>/^\d+(\.\d+)?$/.test(t)).map(Number);
+    if(!nums.length){bad.push(L);return}
+    const n=nums[0], sp=nums.length>1?nums[1]:0;
+    if(n+sp<=0){bad.push(L);return}
+    const date=y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    if(f.rows.some(x=>x.date===date&&num(x.normal)===n&&num(x.special)===sp)){dup++;return}
+    f.rows.push({id:uid(),date:date,normal:n,special:sp}); add++;
+  });
+  let t=add+'件を追加しました。'+(dup?'同じ記録が'+dup+'件あったので、追加していません。':'')+(bad.length?'読み取れない行が'+bad.length+'件ありました(先頭: '+bad[0].slice(0,30)+')。':'');
+  if(add){save();buildTable();refreshNumbers();if(!bad.length&&!dup)$('bulk-txt').value=''}
+  $('bulk-msg').textContent=t;
+});
+['goal-rec','goal-mon'].forEach(id=>$(id).addEventListener('input',()=>{
+  const f=cur(); f.goal={rec:$('goal-rec').value===''?'':Number($('goal-rec').value),mon:$('goal-mon').value===''?'':Number($('goal-mon').value)};
+  save(); renderGoalOut();
+}));
+$('gapnote').addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('button'); if(!b)return;
+  const f=cur(); f.noDist=Array.isArray(f.noDist)?f.noDist:[];
+  if(b.dataset.nodist){if(f.noDist.indexOf(b.dataset.nodist)<0)f.noDist.push(b.dataset.nodist)}
+  else if(b.dataset.undonodist){f.noDist=f.noDist.filter(k=>k!==b.dataset.undonodist)}
+  else return;
+  save();renderGap();
+});
 let raf=0;
 window.addEventListener('resize',()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{if(state.view==='fund')renderChart()})});
 
@@ -1455,6 +1610,8 @@ function setSt(k,t){
   const el=document.getElementById('syncst'); if(!el)return;
   const M={local:'この端末のブラウザだけに保存しています(同期は使えません)。',wait:'クラウドと同期しています…',slow:'クラウドにつながっていません。つながると自動で同期します。',err:'同期できませんでした。この端末には保存されています。',ok:'PC・スマホで同期済み'+(t?'('+t+')':'')};
   el.textContent=M[k]||'';
+  const ds=document.getElementById('disc-store');
+  if(ds&&k==='ok')ds.textContent='入力した記録は、このブラウザと、あなた自身のアカウントに保存され、端末どうしで同期されます。ほかの人には見えません。';
 }
 const hhmm=()=>{const d=new Date();return pad2(d.getHours())+':'+pad2(d.getMinutes())};
 function snapState(){return {v:2,at:state.at,funds:JSON.parse(JSON.stringify(state.funds)),refSeeded:state.refSeeded||[]}}
